@@ -1,15 +1,16 @@
+<!-- FIREBASE BLOCK -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyDcGq4UF6wqKLcI7zidskV8OKOM06AUDTM",
-  authDomain:        "server-19034.firebaseapp.com",
-  databaseURL:       "https://server-19034-default-rtdb.firebaseio.com",
-  projectId:         "server-19034",
-  storageBucket:     "server-19034.firebasestorage.app",
+  apiKey: "AIzaSyDcGq4UF6wqKLcI7zidskV8OKOM06AUDTM",
+  authDomain: "server-19034.firebaseapp.com",
+  databaseURL: "https://server-19034-default-rtdb.firebaseio.com",
+  projectId: "server-19034",
+  storageBucket: "server-19034.firebasestorage.app",
   messagingSenderId: "860267587022",
-  appId:             "1:860267587022:web:83c5629f49a58789d1379f"
+  appId: "1:860267587022:web:83c5629f49a58789d1379f"
 };
 
 let db, profileRef;
@@ -19,13 +20,9 @@ try {
   db  = getDatabase(app);
   profileRef = ref(db, 'profile');
 
-  // SAVE TO FIREBASE
   window._fbSet = (data) => set(profileRef, data);
-
-  // QUEUE FOR WHEN applyProfileData ISN'T READY
   window._fbPending = null;
 
-  // LISTEN FOR CHANGES
   onValue(profileRef, (snap) => {
     const d = snap.exists() ? snap.val() : null;
     if (!d) return;
@@ -43,7 +40,6 @@ try {
   console.warn("Firebase init failed — using local storage only:", e);
 }
 
-// APPLY PENDING DATA ON PAGE LOAD
 window.addEventListener("DOMContentLoaded", () => {
   if (window._fbPending) {
     window.applyProfileData(window._fbPending);
@@ -52,7 +48,12 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 
+<!-- SEPARATE SCRIPT FOR sync.js -->
+<script type="module">
+  import { initFirebaseSync } from './sync.js';
+  initFirebaseSync();
 </script>
+
 <style>
   :root {
     --bg: #080e1e;
