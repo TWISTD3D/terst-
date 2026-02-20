@@ -23,16 +23,23 @@ try {
   window._fbSet = (data) => set(profileRef, data);
   window._fbPending = null;
 
-  onValue(profileRef, (snap) => {
-    const d = snap.exists() ? snap.val() : null;
-    if (!d) return;
+onValue(profileRef, (snap) => {
+  const d = snap.exists() ? snap.val() : null;
+  if (!d) return;
 
-    if (window.applyProfileData) {
-      window.applyProfileData(d);
-    } else {
-      window._fbPending = d;
-    }
-  });
+  // 1. Apply profile data first
+  if (window.applyProfileData) {
+    window.applyProfileData(d);
+  } else {
+    window._fbPending = d;
+  }
+
+  // 2. Apply songs AFTER profile is loaded
+  if (d.songs) {
+    applySongs(d.songs);
+  }
+});
+
 
   console.log("Firebase connected ✓");
 
@@ -1212,27 +1219,57 @@ audio.addEventListener('error', ()=>{
 });
 audio.addEventListener('waiting', ()=>{ /* buffering — could show spinner here */ });
 
-// ── PROFILE PICTURE ──
 function setAvatar(e){
-  const f=e.target.files[0];if(!f)return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const img=new Image();
-    img.onload=()=>{
-      const MAX=220;let w=img.width,h=img.height;
-      if(w>MAX||h>MAX){const sc=Math.min(MAX/w,MAX/h);w=Math.round(w*sc);h=Math.round(h*sc)}
-      const c=document.createElement('canvas');c.width=w;c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      const url=c.toDataURL('image/jpeg',0.88);
-      const imgEl=document.getElementById('avatar-img-el');imgEl.src=url;imgEl.style.display='block';
-      document.getElementById('avatar-fallback').style.display='none';
-      const m=document.getElementById('pfp-mini-img');m.src=url;m.style.display='block';
-      document.getElementById('pfp-mini-txt').style.display='none';
-      storedAvatarDataUrl=url;
-      savePfpToIDB();saveToStorage();toast('profile picture updated');
-    };img.src=ev.target.result;
-  };reader.readAsDataURL(f);
+  const f = e.target.files[0];
+  if(!f) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 220;
+      let w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        const sc = Math.min(MAX/w, MAX/h);
+        w = Math.round(w * sc);
+        h = Math.round(h * sc);
+      }
+
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+
+      const url = c.toDataURL('image/jpeg', 0.88);
+
+      // Update UI
+      const imgEl = document.getElementById('avatar-img-el');
+      imgEl.src = url;
+      imgEl.style.display = 'block';
+      document.getElementById('avatar-fallback').style.display = 'none';
+
+      const m = document.getElementById('pfp-mini-img');
+      m.src = url;
+      m.style.display = 'block';
+      document.getElementById('pfp-mini-txt').style.display = 'none';
+
+      // Save locally
+      storedAvatarDataUrl = url;
+      savePfpToIDB();
+
+      // 🔥 Save to Firebase under "pfp"
+      if (window._fbSet) {
+        window._fbSet({ pfp: url });
+      }
+
+      saveToStorage();
+      toast('profile picture updated');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(f);
 }
+
 // pfp only changeable via settings
 
 // ── PASSWORD ──
@@ -1267,7 +1304,10 @@ function openSettings(){
   if(as&&as.length>50){const m=document.getElementById('pfp-mini-img');m.src=as;m.style.display='block';document.getElementById('pfp-mini-txt').style.display='none'}
   renderBadgeGrid();renderSongListSP();
 }
-function closeSettings(){document.getElementById('settings-overlay').classList.remove('open')}
+function closeSettings(){
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
 function saveSettings(){
   const name=document.getElementById('sp-name').value.trim()||'twistedtbh';
   const bio=document.getElementById('sp-bio').value.trim();
@@ -1277,26 +1317,81 @@ function saveSettings(){
   const bgurl=document.getElementById('sp-bgurl').value.trim();
   const nv=document.getElementById('edit-vol-icon').value.trim();
   const nb=document.getElementById('edit-bright-icon').value.trim();
+
   document.getElementById('username-el').textContent=name;
-  if(bio){bioTexts=[bio];bIdx=0;bCh=0;bDel=false;document.getElementById('bio-text').textContent='';setTimeout(typeBio,400)}
-  if(tab){tabTexts=[tab];tIdx=0;tCh=0;tDel=false;setTimeout(runTypeTab,400)}
-  if(pfp)document.getElementById('avatar-fallback').textContent=pfp;
-  if(nv){volLabel=nv;document.getElementById('vol-label').textContent=nv}
-  if(nb){brightLabel=nb;document.getElementById('bright-label').textContent=nb}
+
+  if(bio){
+    bioTexts=[bio];bIdx=0;bCh=0;bDel=false;
+    document.getElementById('bio-text').textContent='';
+    setTimeout(typeBio,400);
+  }
+
+  if(tab){
+    tabTexts=[tab];tIdx=0;tCh=0;tDel=false;
+    setTimeout(runTypeTab,400);
+  }
+
+  if(pfp) document.getElementById('avatar-fallback').textContent=pfp;
+  if(nv){ volLabel=nv; document.getElementById('vol-label').textContent=nv; }
+  if(nb){ brightLabel=nb; document.getElementById('bright-label').textContent=nb; }
+
   const gv=id=>{const x=document.getElementById(id).value.trim();return x||'#'};
-  socialLinks={github:gv('link-github'),discord:gv('link-discord'),twitter:gv('link-twitter'),tiktok:gv('link-tiktok')};
-  ['github','discord','twitter','tiktok'].forEach(k=>{const el=document.getElementById('s-'+k);el.href=socialLinks[k]||'#';el.target='_blank';el.rel='noopener noreferrer'});
+  socialLinks={
+    github:gv('link-github'),
+    discord:gv('link-discord'),
+    twitter:gv('link-twitter'),
+    tiktok:gv('link-tiktok')
+  };
+
+  ['github','discord','twitter','tiktok'].forEach(k=>{
+    const el=document.getElementById('s-'+k);
+    el.href=socialLinks[k]||'#';
+    el.target='_blank';
+    el.rel='noopener noreferrer';
+  });
+
   applyBadges();
-  const sc={offline:'#f0a8b4',online:'#a8f0c6',dnd:'#f0d8a0'};const col=sc[status]||'#f0a8b4';
-  currentStatus=status;document.getElementById('status-dot').style.background=col;document.getElementById('status-dot2').style.background=col;
+
+  const sc={offline:'#f0a8b4',online:'#a8f0c6',dnd:'#f0d8a0'};
+  const col=sc[status]||'#f0a8b4';
+  currentStatus=status;
+  document.getElementById('status-dot').style.background=col;
+  document.getElementById('status-dot2').style.background=col;
   document.getElementById('status-text-el').textContent=status==='dnd'?'do not disturb':status;
-  if(bgurl)setVideo(bgurl);
-  views+=Math.floor(Math.random()*10)+1;document.getElementById('view-num').textContent=views.toLocaleString();
-  saveToStorage();closeSettings();toast('saved & published');
+
+  if(bgurl) setVideo(bgurl);
+
+  views+=Math.floor(Math.random()*10)+1;
+  document.getElementById('view-num').textContent=views.toLocaleString();
+
+  // LOCAL SAVE
+// LOCAL SAVE
+const publicMeta = {
+  username: document.getElementById('username-el').textContent,
+  bio: bioTexts[0]||'',
+  tab: tabTexts[0]||'',
+  status: currentStatus,
+  badges: badgeData,
+  volLabel,
+  brightLabel,
+  pfpText: document.getElementById('avatar-fallback').textContent,
+  socialLinks,
+  pfp: storedAvatarDataUrl   // ⭐ NEW
+};
+
+// Save to Firebase
+if (window._fbSet) {
+  window._fbSet(publicMeta);
 }
-function setVideo(url){const v=document.getElementById('bg-video');v.src=url;v.style.display='block';bgActive=false;canvas.style.display='none'}
-function uploadBg(e){const f=e.target.files[0];if(!f)return;setVideo(URL.createObjectURL(f));toast('video background set')}
-function readMp3Tags(file, idx){
+
+// Save locally
+saveToStorage();
+
+closeSettings();
+toast('saved & published');
+
+
+
   // Try ID3 via jsmediatags
   if(typeof jsmediatags === 'undefined') return;
   try {
@@ -1775,6 +1870,190 @@ document.addEventListener('keydown', ev=>{
     ev.preventDefault(); onEnterClick(null);
   }
 });
+
+  /* ────────────────────────────────────────────────
+   SONG SYNC SYSTEM — DROP‑IN FULL SCRIPT
+   ──────────────────────────────────────────────── */
+
+// Ensure songs array exists
+if (!window.songs) window.songs = [];
+let songs = window.songs;
+
+// ────────────────────────────────────────────────
+// FETCH METADATA FROM CATBOX URL
+// ────────────────────────────────────────────────
+async function fetchSongMeta(url) {
+  return new Promise((resolve) => {
+    if (typeof jsmediatags === 'undefined') {
+      console.warn('jsmediatags missing — using fallback metadata');
+      resolve({
+        url,
+        name: 'Unknown Title',
+        artist: 'Unknown Artist',
+        album: '',
+        year: '',
+        cover: null
+      });
+      return;
+    }
+
+    jsmediatags.read(url, {
+      onSuccess(tag) {
+        const t = tag.tags;
+
+        if (t.picture) {
+          const pic = t.picture;
+          const bytes = new Uint8Array(pic.data);
+          const blob = new Blob([bytes], { type: pic.format || 'image/jpeg' });
+          const reader = new FileReader();
+
+          reader.onload = () => {
+            resolve({
+              url,
+              name: t.title  || 'Unknown Title',
+              artist: t.artist || 'Unknown Artist',
+              album: t.album || '',
+              year: t.year ? String(t.year) : '',
+              cover: reader.result
+            });
+          };
+
+          reader.readAsDataURL(blob);
+        } else {
+          resolve({
+            url,
+            name: t.title  || 'Unknown Title',
+            artist: t.artist || 'Unknown Artist',
+            album: t.album || '',
+            year: t.year ? String(t.year) : '',
+            cover: null
+          });
+        }
+      },
+
+      onError(err) {
+        console.warn('Metadata read failed:', err);
+        resolve({
+          url,
+          name: 'Unknown Title',
+          artist: 'Unknown Artist',
+          album: '',
+          year: '',
+          cover: null
+        });
+      }
+    });
+  });
+}
+
+
+// ────────────────────────────────────────────────
+// INITIAL 13 SONGS — RUN ONCE
+// ────────────────────────────────────────────────
+async function loadInitialSongs() {
+  const urls = [
+    "https://files.catbox.moe/59sone.mp3",
+    "https://files.catbox.moe/8p5iza.mp3",
+    "https://files.catbox.moe/8zsq1i.mp3",
+    "https://files.catbox.moe/qvt1na.mp3",
+    "https://files.catbox.moe/1or0xn.mp3",
+    "https://files.catbox.moe/agdrlx.mp3",
+    "https://files.catbox.moe/f0g18r.mp3",
+    "https://files.catbox.moe/mxbmku.mp3",
+    "https://files.catbox.moe/k5otlc.mp3",
+    "https://files.catbox.moe/ng5fte.mp3",
+    "https://files.catbox.moe/03pgmn.mp3",
+    "https://files.catbox.moe/xt9kvz.mp3",
+    "https://files.catbox.moe/78j063.mp3"
+  ];
+
+  const list = [];
+
+  for (const url of urls) {
+    const meta = await fetchSongMeta(url);
+    list.push(meta);
+  }
+
+  songs = list;
+
+  // Save to Firebase
+  if (window._fbSet) window._fbSet({ songs });
+
+  // Cache locally
+  if (typeof idbPut === 'function') idbPut('songs', songs);
+
+  // Update UI
+  if (typeof renderSongListSP === 'function') renderSongListSP();
+  if (typeof renderSongListMain === 'function') renderSongListMain();
+
+  console.log('Initial songs loaded + synced.');
+}
+
+// To run once: open console and type: loadInitialSongs();
+
+
+// ────────────────────────────────────────────────
+// ADD NEW SONG LATER
+// ────────────────────────────────────────────────
+async function addSong(url) {
+  const meta = await fetchSongMeta(url);
+  songs.push(meta);
+
+  // Save to Firebase
+  if (window._fbSet) window._fbSet({ songs });
+
+  // Cache locally
+  if (typeof idbPut === 'function') idbPut('songs', songs);
+
+  // Update UI
+  if (typeof renderSongListSP === 'function') renderSongListSP();
+  if (typeof renderSongListMain === 'function') renderSongListMain();
+
+  if (typeof toast === 'function') toast('song added & synced');
+}
+
+
+// ────────────────────────────────────────────────
+// APPLY SONGS FROM FIREBASE
+// ────────────────────────────────────────────────
+function applySongs(list) {
+  if (!Array.isArray(list)) return;
+
+  songs = list;
+
+  if (typeof idbPut === 'function') idbPut('songs', songs);
+
+  if (typeof renderSongListSP === 'function') renderSongListSP();
+  if (typeof renderSongListMain === 'function') renderSongListMain();
+
+  if (typeof currentSongIndex !== 'undefined' &&
+      currentSongIndex !== null &&
+      songs[currentSongIndex] &&
+      typeof loadSong === 'function') {
+    loadSong(currentSongIndex);
+  }
+}
+
+
+// ────────────────────────────────────────────────
+// LOAD SONGS FROM INDEXEDDB ON STARTUP
+// ────────────────────────────────────────────────
+async function loadSongsFromIDB() {
+  if (typeof idbGet !== 'function') return;
+
+  const stored = await idbGet('songs');
+  if (stored && Array.isArray(stored) && stored.length) {
+    songs = stored;
+
+    if (typeof renderSongListSP === 'function') renderSongListSP();
+    if (typeof renderSongListMain === 'function') renderSongListMain();
+  }
+}
+
+// Call on page load if you want:
+// loadSongsFromIDB();
+
+
 
 </script>
 </body>
