@@ -645,29 +645,19 @@ try {
     </div>
     <div class="sp-section">
       <div class="sp-section-title">Music</div>
-      <button class="sp-upload" onclick="document.getElementById('sp-songfiles').click()"><span>upload audio files</span>.mp3 .ogg .wav .m4a</button>
-      <input type="file" id="sp-songfiles" accept="audio/*" multiple onchange="uploadSongs(event)">
-      <div style="margin-top:12px">
-        <div class="sp-section-title" style="font-size:.5rem;margin-bottom:8px">bulk import from urls</div>
-        <div class="song-add-form" style="margin-bottom:12px">
-          <label class="sp-field-label">paste catbox/external urls — one per line — metadata auto-read</label>
-          <textarea class="sp-input" id="sp-bulkurls" rows="4" placeholder="https://files.catbox.moe/abc.mp3&#10;https://files.catbox.moe/def.mp3" style="resize:vertical;font-size:.7rem;line-height:1.6"></textarea>
-          <button class="sp-add-btn" style="width:100%;margin-top:8px" onclick="bulkImportSongs()">import & read metadata</button>
+      <div class="song-add-form">
+        <div style="margin-bottom:6px"><label class="sp-field-label">audio url (catbox/soundcloud/etc)</label><input class="sp-input" id="sp-songurl" placeholder="https://files.catbox.moe/..."></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label class="sp-field-label">title</label><input class="sp-input" id="sp-songtitle" placeholder="Track name" maxlength="60"></div>
+          <div><label class="sp-field-label">artist</label><input class="sp-input" id="sp-songartist" placeholder="Artist" maxlength="60"></div>
         </div>
-        <div class="sp-section-title" style="font-size:.5rem;margin-bottom:8px">add song manually</div>
-        <div class="song-add-form">
-          <div class="song-form-row-with-img">
-            <div><label class="sp-field-label">cover art</label><div class="song-cover-preview" id="song-cover-preview" onclick="document.getElementById('song-cover-file').click()"><span id="song-cover-text">add<br>img</span><img id="song-cover-img" src="" style="display:none" alt=""></div><input type="file" id="song-cover-file" accept="image/*" onchange="setSongCoverPreview(event)"></div>
-            <div style="flex:1;display:grid;gap:6px">
-              <div><label class="sp-field-label">title *</label><input class="sp-input" id="sp-songtitle" placeholder="Track name" maxlength="60"></div>
-              <div><label class="sp-field-label">artist</label><input class="sp-input" id="sp-songartist" placeholder="Artist name" maxlength="60"></div>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
-            <div><label class="sp-field-label">album</label><input class="sp-input" id="sp-songalbum" placeholder="Album name" maxlength="60"></div>
-            <div><label class="sp-field-label">year</label><input class="sp-input" id="sp-songyear" placeholder="2024" maxlength="4"></div>
-          </div>
-          <div style="margin-top:6px"><label class="sp-field-label">audio url</label><div class="sp-row"><input class="sp-input" id="sp-songurl" placeholder="https://..."><button class="sp-add-btn" onclick="addSongUrl()">add</button></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div><label class="sp-field-label">album</label><input class="sp-input" id="sp-songalbum" placeholder="Album" maxlength="60"></div>
+          <div><label class="sp-field-label">year</label><input class="sp-input" id="sp-songyear" placeholder="2024" maxlength="4"></div>
+        </div>
+        <div style="margin-bottom:8px"><label class="sp-field-label">cover art url (catbox/imgur image link)</label><input class="sp-input" id="sp-songcover" placeholder="https://files.catbox.moe/....jpg"></div>
+        <button class="sp-add-btn" style="width:100%" onclick="addSongUrl()">add song</button>
+      </div>
         </div>
       </div>
       <div class="song-list-sp" id="song-list-sp" style="margin-top:10px"></div>
@@ -1100,10 +1090,9 @@ function loadTrack(i){
   if(!songs[i]) return;
   curTrack = i;
   const s = songs[i];
-  pendingPlay = false;
-  // NEVER set crossOrigin on blob/data URLs — browsers reject it
   audio.removeAttribute('crossorigin');
   audio.src = s.url;
+  audio.load();
   audio.volume = Math.max(0, Math.min(1, (document.getElementById('vol-sl').value||70)/100));
   updateTrackUI(s);
   updateAlbumDisplay(s);
@@ -1135,12 +1124,9 @@ function doPlay(){
 
 function playTrack(i){
   if(!songs[i]) return;
-  // If same track and already playing, just restart
   if(i === curTrack && playing){ audio.currentTime=0; return; }
+  pendingPlay = true;  // set BEFORE loadTrack so canplay doesn't miss it
   loadTrack(i);
-  pendingPlay = true;
-  // Don't call play() immediately — wait for canplay event
-  // (audio.load() is implicit when src changes)
 }
 
 function togglePlay(){
@@ -1152,10 +1138,13 @@ function togglePlay(){
     pendingPlay = false;
     updPP();
   } else {
-    // Resume AudioContext on user gesture if needed
     if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
     pendingPlay = true;
-    doPlay();
+    // If already buffered enough, play now — otherwise canplay will trigger doPlay
+    if(audio.readyState >= 3){
+      doPlay();
+    }
+    // else canplay listener handles it
   }
 }
 
@@ -1463,23 +1452,26 @@ async function bulkImportSongs(){
 function addSongUrl(){
   const url=document.getElementById('sp-songurl').value.trim();
   if(!url){toast('enter a URL first');return;}
-  const raw=url.split('/').pop().split('?')[0];
-  const t=document.getElementById('sp-songtitle').value.trim()||(raw?decodeURIComponent(raw).replace(/\.[^.]+$/,''):'Track '+(songs.length+1));
-  let cs='';
-  if(pendingSongCoverBlob)cs=URL.createObjectURL(pendingSongCoverBlob);
+  const titleInp=document.getElementById('sp-songtitle').value.trim();
+  const raw=decodeURIComponent(url.split('/').pop().split('?')[0]).replace(/\.[^.]+$/,'');
+  const t=titleInp||raw||('Track '+(songs.length+1));
+  const coverUrl=(document.getElementById('sp-songcover')||{value:''}).value.trim();
   const newIdx=songs.length;
-  songs.push({url,name:t,artist:document.getElementById('sp-songartist').value.trim(),album:document.getElementById('sp-songalbum').value.trim(),year:document.getElementById('sp-songyear').value.trim(),coverSrc:cs});
-  ['sp-songurl','sp-songtitle','sp-songartist','sp-songalbum','sp-songyear'].forEach(id=>document.getElementById(id).value='');
-  pendingSongCoverBlob=null;
-  document.getElementById('song-cover-img').style.display='none';
-  document.getElementById('song-cover-text').style.display='';
+  songs.push({
+    url, b64:'',
+    name:t,
+    artist:document.getElementById('sp-songartist').value.trim(),
+    album:document.getElementById('sp-songalbum').value.trim(),
+    year:document.getElementById('sp-songyear').value.trim(),
+    coverSrc: coverUrl  // public URL — works on all devices
+  });
+  ['sp-songurl','sp-songtitle','sp-songartist','sp-songalbum','sp-songyear','sp-songcover'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderSelector();renderSongListSP();
   const wasEmpty=curTrack===-1;
   loadTrack(wasEmpty?newIdx:curTrack);
-  // Save to Firebase so all visitors get this song
   saveSongsToIDB();
   saveToStorage();
-  toast(wasEmpty?'song added — hit play!':'song added ✓ visible to all');
+  toast(wasEmpty?'song added — hit play!':'song added ✓ synced globally');
 }
 function removeSong(i){songs.splice(i,1);if(curTrack>=songs.length)curTrack=songs.length-1;renderSelector();renderSongListSP();saveSongsToIDB();saveToStorage();}
 function renderSongListSP(){const el=document.getElementById('song-list-sp');el.innerHTML='';songs.forEach((s,i)=>{const d=document.createElement('div');d.className='song-sp-row';const m=[s.artist,s.album,s.year].filter(Boolean).join(' · ')||'no metadata';d.innerHTML=`<span class="song-sp-num">${String(i+1).padStart(2,'0')}</span><div class="song-sp-info"><div class="song-sp-title">${s.name}</div><div class="song-sp-meta">${m}</div></div><button class="song-sp-rm" onclick="removeSong(${i})">rm</button>`;el.appendChild(d)});if(!songs.length)el.innerHTML='<div style="font-family:\'Geist Mono\',monospace;font-size:.62rem;color:var(--muted);padding:6px 0;letter-spacing:1px;text-transform:uppercase">no songs yet</div>'}
@@ -1658,7 +1650,11 @@ window.applyProfileData = function applyProfileData(d){
       album: s.album||'', year: s.year||'', coverSrc: s.coverSrc||''
     }));
     renderSelector();
-    if(curTrack === -1) loadTrack(0);
+    // Load track 0 into the player (sets src, updates UI) but don't autoplay
+    // User must press play — browser blocks autoplay without a gesture
+    const startTrack = playing ? curTrack : 0;
+    curTrack = -1; // reset so loadTrack treats it as fresh
+    loadTrack(startTrack);
   }
 };
 // Flush any Firebase data that arrived before applyProfileData was defined
