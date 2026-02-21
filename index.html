@@ -841,6 +841,8 @@ function setupAnalyzer(){
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.76;
+    // Simple graph: source → analyser → output
+    // audioSrc can only be created once per audio element
     if(!audioSrc){
       audioSrc = audioCtx.createMediaElementSource(audio);
       audioSrc.connect(analyser);
@@ -855,7 +857,11 @@ function setupAnalyzer(){
 function avgR(s,e){if(!freqData)return 0;let sum=0,n=0;for(let i=s;i<Math.min(e,freqData.length);i++){sum+=freqData[i];n++}return n?sum/n:0}
 function audioReactLoop(){
   requestAnimationFrame(audioReactLoop);
-  if(!analyser||!freqData)return;
+  if(!analyser||!freqData){
+    // No audio yet — keep bgEnergy gently pulsing so particles still animate
+    bgEnergy = 0;
+    return;
+  }
   if(audioCtx.state==='suspended')audioCtx.resume();
   analyser.getByteFrequencyData(freqData);
   const N=freqData.length,bass=avgR(0,5),low=avgR(5,15),mid=avgR(15,40),hi=avgR(40,N);
@@ -1754,30 +1760,19 @@ function connectLanyard(){
 try { applyPalette([[80,180,255],[56,212,255],[144,220,255]]); } catch(e) {}
 try { renderSelector(); } catch(e) {}
 (async()=>{
-  // Firebase onValue fires within ~300ms and calls applyProfileData with songs+pfp URLs
-  // so visitors on any device/browser get everything from catbox automatically.
-  // We just increment views locally — no IDB song loading needed for visitors.
   try { views++; document.getElementById('view-num').textContent = views.toLocaleString(); } catch(e) {}
-  // Owner only: load their local settings as instant fallback before Firebase responds
   try { await loadFromStorage(); } catch(e) {}
 })();
+// Muffle audio until user enters — restored in enterSite()
+audio.volume = 0.07;
+// Start animation loop immediately — color reactions begin when audio plays
+audioReactLoop();
 try { fetch(`https://api.lanyard.rest/v1/users/${DISCORD_ID}`).then(r=>r.json()).then(j=>{if(j.success&&j.data)applyPresence(j.data)}).catch(()=>{}); } catch(e) {}
 try { connectLanyard(); } catch(e) {}
 
 // ── ENTER SCREEN ──
 let entered = false;
-let gainNode = null;
 
-function buildGainNode(){
-  if(!audioCtx || gainNode) return;
-  try{
-    gainNode = audioCtx.createGain();
-    analyser.disconnect();
-    analyser.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    gainNode.gain.value = 0.10; // muffled behind enter screen
-  }catch(e){}
-}
 
 
 
@@ -1808,8 +1803,18 @@ function enterSite(e){
       document.body.appendChild(w);
       setTimeout(()=>w.remove(), 1000);
     }
-    // Restore volume
-    audio.volume = document.getElementById('vol-sl').value / 100;
+    // Ramp volume up from muffled to full over 800ms
+    const targetVol = document.getElementById('vol-sl').value / 100;
+    const startVol = audio.volume;
+    const startTime = Date.now();
+    const rampDuration = 800;
+    (function rampVol(){
+      const elapsed = Date.now() - startTime;
+      const t = Math.min(elapsed / rampDuration, 1);
+      audio.volume = startVol + (targetVol - startVol) * t;
+      if(t < 1) requestAnimationFrame(rampVol);
+      else audio.volume = targetVol;
+    })();
   }, 400);
 
   // Step 3: fade screen away after burst
@@ -1820,14 +1825,10 @@ function enterSite(e){
 }
 
 function onEnterClick(e){
-  // User gesture — set up AudioContext so visualiser works when they hit play
   try{
-    if(!audioCtx){
-      setupAnalyzer();
-    } else if(audioCtx.state==='suspended'){
-      audioCtx.resume();
-    }
-    // Load track 0 into player so it's ready when they hit play
+    // Must create AudioContext on user gesture
+    if(!audioCtx) setupAnalyzer();
+    else if(audioCtx.state==='suspended') audioCtx.resume();
     if(songs.length && curTrack === -1) loadTrack(0);
   }catch(err){}
   enterSite(e);
