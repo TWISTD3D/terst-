@@ -645,18 +645,48 @@ try {
     </div>
     <div class="sp-section">
       <div class="sp-section-title">Music</div>
-      <div class="song-add-form">
-        <div style="margin-bottom:6px"><label class="sp-field-label">audio url (catbox/soundcloud/etc)</label><input class="sp-input" id="sp-songurl" placeholder="https://files.catbox.moe/..."></div>
+      <p class="small-note" style="margin-bottom:10px">upload mp4/mp3 → cloudinary (free 25gb) → plays globally for all visitors</p>
+      <div id="cloudinary-setup" style="background:rgba(80,180,255,0.05);border:1px solid rgba(80,180,255,0.15);border-radius:8px;padding:10px;margin-bottom:10px">
+        <div class="sp-field-label" style="margin-bottom:6px">cloudinary setup (one-time)</div>
+        <div style="display:grid;gap:6px;margin-bottom:6px">
+          <input class="sp-input" id="sp-cloudname" placeholder="cloud name (e.g. dxxxxxx)">
+          <input class="sp-input" id="sp-cloudpreset" placeholder="upload preset (unsigned)">
+        </div>
+        <button class="sp-add-btn" style="width:100%" onclick="saveCloudinaryCredentials()">save credentials</button>
+        <p class="small-note" style="margin-top:6px">1. go to cloudinary.com → free signup → copy your cloud name<br>2. settings → upload → add unsigned preset → copy preset name</p>
+      </div>
+      <div class="song-add-form" id="song-upload-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+          <div>
+            <label class="sp-field-label">audio file (mp4/mp3/ogg)</label>
+            <div id="song-file-drop" onclick="document.getElementById('sp-songfile').click()" style="border:1px dashed rgba(80,180,255,0.22);border-radius:8px;padding:12px;text-align:center;cursor:pointer;font-family:'Geist Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;transition:all .2s">
+              <span id="song-file-name">click to choose file</span>
+            </div>
+            <input type="file" id="sp-songfile" accept="audio/*,video/mp4" style="display:none" onchange="onSongFileChosen(event)">
+          </div>
+          <div>
+            <label class="sp-field-label">cover image (jpg/png)</label>
+            <div id="cover-file-drop" onclick="document.getElementById('sp-coverfile').click()" style="border:1px dashed rgba(80,180,255,0.22);border-radius:8px;padding:12px;text-align:center;cursor:pointer;font-family:'Geist Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;transition:all .2s">
+              <span id="cover-file-name">click to choose</span>
+            </div>
+            <input type="file" id="sp-coverfile" accept="image/*" style="display:none" onchange="onCoverFileChosen(event)">
+          </div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
           <div><label class="sp-field-label">title</label><input class="sp-input" id="sp-songtitle" placeholder="Track name" maxlength="60"></div>
           <div><label class="sp-field-label">artist</label><input class="sp-input" id="sp-songartist" placeholder="Artist" maxlength="60"></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <div><label class="sp-field-label">album</label><input class="sp-input" id="sp-songalbum" placeholder="Album" maxlength="60"></div>
           <div><label class="sp-field-label">year</label><input class="sp-input" id="sp-songyear" placeholder="2024" maxlength="4"></div>
         </div>
-        <div style="margin-bottom:8px"><label class="sp-field-label">cover art url (catbox/imgur image link)</label><input class="sp-input" id="sp-songcover" placeholder="https://files.catbox.moe/....jpg"></div>
-        <button class="sp-add-btn" style="width:100%" onclick="addSongUrl()">add song</button>
+        <div id="upload-progress-wrap" style="display:none;margin-bottom:8px">
+          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+            <div id="upload-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s;border-radius:2px"></div>
+          </div>
+          <div id="upload-progress-label" style="font-family:'Geist Mono',monospace;font-size:.55rem;color:var(--muted);margin-top:4px;letter-spacing:1px"></div>
+        </div>
+        <button class="sp-add-btn" style="width:100%" id="song-upload-btn" onclick="uploadSongToFirebase()">upload & save globally</button>
       </div>
         </div>
       </div>
@@ -805,8 +835,6 @@ function setupAnalyzer(){
   try {
     if(audioCtx){
       if(audioCtx.state==='suspended') audioCtx.resume();
-      // Rebuild gainNode if somehow missing
-      if(entered) buildGainNode();
       return;
     }
     audioCtx = new(window.AudioContext||window.webkitAudioContext)();
@@ -819,9 +847,6 @@ function setupAnalyzer(){
       analyser.connect(audioCtx.destination);
     }
     freqData = new Uint8Array(analyser.frequencyBinCount);
-    // Build gain node — muffled if not entered yet, full if already entered
-    buildGainNode();
-    if(entered && gainNode) gainNode.gain.value = 1.0;
     audioReactLoop();
   } catch(e) {
     audioCtx = null;
@@ -1060,8 +1085,7 @@ function updateAlbumDisplay(s){
 }
 
 // ── MUSIC ENGINE ──
-// pendingPlay: true means user hit play and we're waiting for audio to be ready
-let pendingPlay = false;
+
 
 function renderSelector(){
   const el=document.getElementById('song-selector');
@@ -1090,9 +1114,13 @@ function loadTrack(i){
   if(!songs[i]) return;
   curTrack = i;
   const s = songs[i];
-  audio.removeAttribute('crossorigin');
+  // crossOrigin must be set BEFORE src for CORS to work
+  if(s.url && s.url.startsWith('http')) {
+    audio.crossOrigin = 'anonymous';
+  } else {
+    audio.removeAttribute('crossorigin');
+  }
   audio.src = s.url;
-  audio.load();
   audio.volume = Math.max(0, Math.min(1, (document.getElementById('vol-sl').value||70)/100));
   updateTrackUI(s);
   updateAlbumDisplay(s);
@@ -1101,50 +1129,34 @@ function loadTrack(i){
 
 function doPlay(){
   if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-  const p = audio.play();
-  if(p !== undefined){
-    p.then(()=>{
-      playing = true;
-      pendingPlay = false;
-      updPP();
-      try{ setupAnalyzer(); }catch(e){}
-      // Make sure gain is up if we've entered
-      if(entered && gainNode) gainNode.gain.value = 1.0;
-    }).catch(err=>{
-      playing = false;
-      pendingPlay = false;
-      updPP();
-      if(err.name === 'NotAllowedError') toast('tap play again');
-      else if(err.name === 'NotSupportedError') toast('format not supported');
-      else if(err.name === 'AbortError') {}
-      else toast('play error: '+err.message.slice(0,40));
-    });
-  }
+  audio.play().then(()=>{
+    playing = true;
+    updPP();
+    setupAnalyzer();
+  }).catch(err=>{
+    playing = false;
+    updPP();
+    if(err.name !== 'AbortError') toast('playback error — try again');
+  });
 }
 
 function playTrack(i){
   if(!songs[i]) return;
   if(i === curTrack && playing){ audio.currentTime=0; return; }
-  pendingPlay = true;  // set BEFORE loadTrack so canplay doesn't miss it
   loadTrack(i);
+  doPlay();
 }
 
 function togglePlay(){
-  if(!songs.length){ requestAccess(); return; }
-  if(curTrack === -1){ playTrack(0); return; }
+  if(!songs.length){ toast('add songs in settings first'); return; }
+  if(curTrack === -1){ loadTrack(0); }
   if(playing){
     audio.pause();
     playing = false;
-    pendingPlay = false;
     updPP();
   } else {
     if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-    pendingPlay = true;
-    // If already buffered enough, play now — otherwise canplay will trigger doPlay
-    if(audio.readyState >= 3){
-      doPlay();
-    }
-    // else canplay listener handles it
+    doPlay();
   }
 }
 
@@ -1166,12 +1178,7 @@ function setBrightness(v){ document.getElementById('bg-overlay').style.opacity=.
 function fmt(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 
 // Audio events — these are the only reliable way to drive playback
-audio.addEventListener('canplay', ()=>{
-  // canplay fires when there's enough data to start
-  if(pendingPlay){
-    doPlay();
-  }
-});
+// canplay not needed — doPlay() is called directly on user gesture
 audio.addEventListener('timeupdate', ()=>{
   if(!audio.duration) return;
   document.getElementById('prog-fill').style.width = (audio.currentTime/audio.duration*100)+'%';
@@ -1180,16 +1187,21 @@ audio.addEventListener('timeupdate', ()=>{
 });
 audio.addEventListener('ended', ()=>{
   playing = false;
-  if(rep){ audio.currentTime=0; pendingPlay=true; audio.play().then(()=>{playing=true;updPP();}).catch(()=>{}); }
+  if(rep){ audio.currentTime=0; audio.play().then(()=>{playing=true;updPP();}).catch(()=>{}); }
   else nextTrack();
 });
 audio.addEventListener('error', ()=>{
   playing = false;
-  pendingPlay = false;
   updPP();
   const codes = {1:'aborted',2:'network error',3:'decode error',4:'format not supported'};
-  const msg = audio.error ? (codes[audio.error.code]||'unknown') : 'unknown error';
-  toast('audio error: '+msg);
+  const code = audio.error ? audio.error.code : 0;
+  const msg = codes[code] || 'unknown';
+  // Log everything so we can debug
+  console.error('Audio error:', code, msg, 'src:', audio.src, audio.error);
+  if(code === 2) toast('network error — check URL is accessible');
+  else if(code === 3) toast('decode error — file may be corrupted');
+  else if(code === 4) toast('format not supported — URL: ' + audio.src.slice(0,60));
+  else toast('audio error: ' + msg);
 });
 audio.addEventListener('waiting', ()=>{ /* buffering — could show spinner here */ });
 
@@ -1227,10 +1239,11 @@ function renderBadgeGrid(){const g=document.getElementById('badge-grid');if(!g)r
 function addBadgeSlot(){badgeData.push('new');renderBadgeGrid()}
 function rmBadge(i){badgeData.splice(i,1);renderBadgeGrid();applyBadges()}
 function applyBadges(){badgeData=Array.from(document.querySelectorAll('[id^="binp-"]')).map(e=>e.value.trim()).filter(Boolean);renderBadgesOnCard();toast('badges updated')}
-function setSongCoverPreview(e){const f=e.target.files[0];if(!f)return;pendingSongCoverBlob=f;const i=document.getElementById('song-cover-img');i.src=URL.createObjectURL(f);i.style.display='block';document.getElementById('song-cover-text').style.display='none'}
+
 
 // ── SETTINGS ──
 function openSettings(){
+  loadCloudinaryCredentials();
   document.getElementById('settings-overlay').classList.add('open');
   document.getElementById('sp-name').value=document.getElementById('username-el').textContent;
   document.getElementById('sp-bio').value=bioTexts[0]||'';
@@ -1324,155 +1337,190 @@ function readMp3Tags(file, idx){
 function fileToDataUrl(file){
   return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);});
 }
-function uploadSongs(e){
-  const files=Array.from(e.target.files);
-  if(!files.length)return;
-  const startIdx=songs.length;
-  // Push all songs first so indices are stable
-  files.forEach(f=>{
-    songs.push({url:URL.createObjectURL(f),b64:'',name:f.name.replace(/\.[^.]+$/,''),artist:'',album:'',year:'',coverSrc:''});
-  });
-  renderSelector();renderSongListSP();
-  if(curTrack===-1&&songs.length)loadTrack(startIdx);
-  // Convert ALL files to b64 in parallel, save ONCE when all done
-  const promises=files.map((f,fi)=>{
-    const idx=startIdx+fi;
-    // Read ID3 tags async
-    if(typeof jsmediatags!=='undefined'){
-      try{jsmediatags.read(f,{
-        onSuccess(tag){
-          const t=tag.tags,s=songs[idx];if(!s)return;
-          if(t.title)s.name=t.title;if(t.artist)s.artist=t.artist;
-          if(t.album)s.album=t.album;if(t.year)s.year=String(t.year);
-          if(t.picture){
-            const bytes=new Uint8Array(t.picture.data);
-            const blob=new Blob([bytes],{type:t.picture.format||'image/jpeg'});
-            const fr=new FileReader();
-            fr.onload=ev=>{if(songs[idx])songs[idx].coverSrc=ev.target.result;if(idx===curTrack)updateAlbumDisplay(songs[idx]);};
-            fr.readAsDataURL(blob);
-          }
-          if(idx===curTrack){
-            document.getElementById('track-title-el').textContent=s.name;
-            document.getElementById('track-artist-el').textContent=s.artist||'unknown artist';
-            document.getElementById('track-album-el').textContent=s.album?(s.album+(s.year?' · '+s.year:'')):'';
-            if(!t.picture)updateAlbumDisplay(s);
-          }
-          renderSelector();renderSongListSP();
-        },onError(){}
-      });}catch(err){}
-    }
-    // Return b64 promise
-    return fileToDataUrl(f).then(b64=>{
-      if(songs[idx]){songs[idx].b64=b64;songs[idx].url=b64;}
-    }).catch(()=>{});
-  });
-  // Save ONCE after ALL conversions finish
-  Promise.all(promises).then(()=>{
-    saveSongsToIDB();
-    saveToStorage();
-    toast(files.length+' song'+(files.length>1?'s':'')+' saved ✓');
-  });
-  toast('songs added locally — use catbox URLs for global sharing');
-  e.target.value='';
-}
-async function fetchTagsFromUrl(url){
-  if(typeof jsmediatags === 'undefined') return null;
-  try {
-    // Only fetch first 512KB — more than enough for ID3 tags + cover art
-    const res = await fetch(url, { headers: { Range: 'bytes=0-524287' } });
-    if(!res.ok && res.status !== 206) return null;
-    const buf = await res.arrayBuffer();
-    const blob = new Blob([buf]);
-    return await new Promise(resolve => {
-      jsmediatags.read(blob, {
-        onSuccess(tag){
-          const t = tag.tags;
-          if(t.picture){
-            const bytes = new Uint8Array(t.picture.data);
-            const picBlob = new Blob([bytes], {type: t.picture.format||'image/jpeg'});
-            const fr = new FileReader();
-            fr.onload = ev => resolve({
-              name: t.title||'', artist: t.artist||'',
-              album: t.album||'', year: t.year ? String(t.year) : '',
-              coverSrc: ev.target.result
-            });
-            fr.readAsDataURL(picBlob);
-          } else {
-            resolve({
-              name: t.title||'', artist: t.artist||'',
-              album: t.album||'', year: t.year ? String(t.year) : '',
-              coverSrc: ''
-            });
-          }
-        },
-        onError(e){ console.warn('jsmediatags error for', url, e); resolve(null); }
-      });
-    });
-  } catch(e){ console.warn('fetchTags failed for', url, e); return null; }
+
+
+
+
+
+// Chosen files waiting for upload
+let _songFile = null, _coverFile = null;
+
+
+function saveCloudinaryCredentials(){
+  const name   = document.getElementById('sp-cloudname').value.trim();
+  const preset = document.getElementById('sp-cloudpreset').value.trim();
+  if(!name || !preset){ toast('fill in both fields'); return; }
+  window._cloudinaryName   = name;
+  window._cloudinaryPreset = preset;
+  try{ localStorage.setItem('cloudinary_name', name); localStorage.setItem('cloudinary_preset', preset); }catch(e){}
+  document.getElementById('cloudinary-setup').style.display = 'none';
+  toast('cloudinary saved ✓');
 }
 
-async function bulkImportSongs(){
-  const ta = document.getElementById('sp-bulkurls');
-  const urls = (ta.value||'').split('\n').map(s=>s.trim()).filter(s=>s.startsWith('http'));
-  if(!urls.length){ toast('paste at least one URL'); return; }
-  const btn = ta.nextElementSibling;
-  if(btn) btn.disabled = true;
-  // Remove existing songs that match these URLs so we don't duplicate
-  const urlSet = new Set(urls);
-  songs = songs.filter(s => !urlSet.has(s.url));
-  let added = 0;
-  for(const url of urls){
-    // Fallback name = catbox hash (e.g. "59sone") — better than the full URL
-    const raw = decodeURIComponent(url.split('/').pop().split('?')[0]).replace(/\.[^.]+$/,'');
-    const fallbackName = raw || ('Track '+(songs.length+1));
-    toast('reading tags '+(added+1)+'/'+urls.length+'...');
-    const tags = await fetchTagsFromUrl(url);
-    const name = (tags && tags.name && tags.name.trim()) ? tags.name.trim() : fallbackName;
-    const song = {
-      url, b64: '',
-      name,
-      artist:   (tags && tags.artist)   || '',
-      album:    (tags && tags.album)    || '',
-      year:     (tags && tags.year)     || '',
-      coverSrc: (tags && tags.coverSrc) || ''
-    };
-    songs.push(song);
-    added++;
+function loadCloudinaryCredentials(){
+  try{
+    const n = localStorage.getItem('cloudinary_name');
+    const p = localStorage.getItem('cloudinary_preset');
+    if(n) window._cloudinaryName   = n;
+    if(p) window._cloudinaryPreset = p;
+    if(n && document.getElementById('sp-cloudname'))   document.getElementById('sp-cloudname').value   = n;
+    if(p && document.getElementById('sp-cloudpreset')) document.getElementById('sp-cloudpreset').value = p;
+    if(n && p) document.getElementById('cloudinary-setup').style.display = 'none';
+  }catch(e){}
+}
+
+function onSongFileChosen(e){
+  _songFile = e.target.files[0];
+  if(!_songFile) return;
+  document.getElementById('song-file-name').textContent = _songFile.name;
+  // Auto-fill title from filename if empty
+  const titleInp = document.getElementById('sp-songtitle');
+  if(!titleInp.value) titleInp.value = _songFile.name.replace(/\.[^.]+$/, '');
+  // Try to read ID3 tags from the local file (no CORS issues — it's local)
+  if(typeof jsmediatags !== 'undefined'){
+    jsmediatags.read(_songFile, {
+      onSuccess(tag){
+        const t = tag.tags;
+        if(t.title)  document.getElementById('sp-songtitle').value  = t.title;
+        if(t.artist) document.getElementById('sp-songartist').value = t.artist;
+        if(t.album)  document.getElementById('sp-songalbum').value  = t.album;
+        if(t.year)   document.getElementById('sp-songyear').value   = String(t.year);
+        if(t.picture && !_coverFile){
+          // Use embedded cover as the cover file
+          const bytes = new Uint8Array(t.picture.data);
+          const blob  = new Blob([bytes], {type: t.picture.format||'image/jpeg'});
+          _coverFile = new File([blob], 'cover.jpg', {type: blob.type});
+          document.getElementById('cover-file-name').textContent = 'embedded cover ✓';
+        }
+      },
+      onError(){}
+    });
+  }
+}
+
+function onCoverFileChosen(e){
+  _coverFile = e.target.files[0];
+  if(_coverFile) document.getElementById('cover-file-name').textContent = _coverFile.name;
+}
+
+async function uploadSongToFirebase(){
+  if(!_songFile){ toast('choose an audio file first'); return; }
+
+  // Cloudinary unsigned upload — free 25GB, no credit card, full CORS
+  // You need to set your cloud name and upload preset below
+  const CLOUD_NAME   = window._cloudinaryName   || '';
+  const UPLOAD_PRESET = window._cloudinaryPreset || '';
+  if(!CLOUD_NAME || !UPLOAD_PRESET){
+    toast('set cloudinary credentials in settings');
+    document.getElementById('cloudinary-setup').style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('song-upload-btn');
+  const progressWrap = document.getElementById('upload-progress-wrap');
+  const progressBar  = document.getElementById('upload-progress-bar');
+  const progressLbl  = document.getElementById('upload-progress-label');
+
+  btn.disabled = true;
+  progressWrap.style.display = 'block';
+
+  const title  = document.getElementById('sp-songtitle').value.trim()  || _songFile.name.replace(/\.[^.]+$/,'');
+  const artist = document.getElementById('sp-songartist').value.trim() || '';
+  const album  = document.getElementById('sp-songalbum').value.trim()  || '';
+  const year   = document.getElementById('sp-songyear').value.trim()   || '';
+
+  try {
+    // Upload audio to Cloudinary
+    progressLbl.textContent = 'uploading audio...';
+    const audioUrl = await cloudinaryUpload(_songFile, CLOUD_NAME, UPLOAD_PRESET, pct => {
+      progressBar.style.width = pct * 0.8 + '%';
+      progressLbl.textContent = 'uploading audio ' + pct + '%';
+    });
+
+    // Upload cover to Cloudinary if provided
+    let coverUrl = '';
+    if(_coverFile){
+      progressLbl.textContent = 'uploading cover...';
+      coverUrl = await cloudinaryUpload(_coverFile, CLOUD_NAME, UPLOAD_PRESET, pct => {
+        progressBar.style.width = 80 + pct * 0.2 + '%';
+        progressLbl.textContent = 'uploading cover ' + pct + '%';
+      });
+    }
+
+    progressBar.style.width = '100%';
+    progressLbl.textContent = 'saving...';
+
+    songs.push({ url: audioUrl, b64:'', name: title, artist, album, year, coverSrc: coverUrl });
     renderSelector();
     renderSongListSP();
     if(curTrack === -1) loadTrack(0);
+
+    await saveSongsToIDB();
+    await saveToStorage();
+
+    // Reset form
+    _songFile = null; _coverFile = null;
+    document.getElementById('sp-songfile').value  = '';
+    document.getElementById('sp-coverfile').value = '';
+    document.getElementById('song-file-name').textContent  = 'click to choose file';
+    document.getElementById('cover-file-name').textContent = 'click to choose';
+    ['sp-songtitle','sp-songartist','sp-songalbum','sp-songyear'].forEach(id => document.getElementById(id).value = '');
+
+    progressWrap.style.display = 'none';
+    progressBar.style.width = '0%';
+    btn.disabled = false;
+    toast('uploaded & live for all visitors ✓');
+
+  } catch(err) {
+    console.error('Upload failed:', err);
+    progressWrap.style.display = 'none';
+    btn.disabled = false;
+    toast('upload failed — check credentials');
   }
-  ta.value = '';
-  if(btn) btn.disabled = false;
-  await saveSongsToIDB();
-  await saveToStorage();
-  toast(added+' song'+(added>1?'s':'')+' imported ✓ synced globally');
 }
 
+function cloudinaryUpload(file, cloudName, preset, onProgress){
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', preset);
+    const xhr = new XMLHttpRequest();
+    // Use video endpoint for mp4/audio files, image for images
+    const type = file.type.startsWith('image/') ? 'image' : 'video';
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/${type}/upload`);
+    xhr.upload.onprogress = e => { if(e.lengthComputable) onProgress(Math.round(e.loaded/e.total*100)); };
+    xhr.onload = () => {
+      if(xhr.status === 200){
+        const res = JSON.parse(xhr.responseText);
+        resolve(res.secure_url);
+      } else {
+        reject(new Error('Cloudinary error: ' + xhr.status + ' ' + xhr.responseText));
+      }
+    };
+    xhr.onerror = () => reject(new Error('network error'));
+    xhr.send(fd);
+  });
+}
+
+// Keep addSongUrl for URL-based songs (optional fallback)
 function addSongUrl(){
-  const url=document.getElementById('sp-songurl').value.trim();
-  if(!url){toast('enter a URL first');return;}
-  const titleInp=document.getElementById('sp-songtitle').value.trim();
-  const raw=decodeURIComponent(url.split('/').pop().split('?')[0]).replace(/\.[^.]+$/,'');
-  const t=titleInp||raw||('Track '+(songs.length+1));
-  const coverUrl=(document.getElementById('sp-songcover')||{value:''}).value.trim();
-  const newIdx=songs.length;
+  const url = (document.getElementById('sp-songurl')||{value:''}).value.trim();
+  if(!url){ toast('enter a URL first'); return; }
+  const title = (document.getElementById('sp-songtitle')||{value:''}).value.trim() || url.split('/').pop().replace(/\.[^.]+$/,'');
   songs.push({
     url, b64:'',
-    name:t,
-    artist:document.getElementById('sp-songartist').value.trim(),
-    album:document.getElementById('sp-songalbum').value.trim(),
-    year:document.getElementById('sp-songyear').value.trim(),
-    coverSrc: coverUrl  // public URL — works on all devices
+    name:     title,
+    artist:   (document.getElementById('sp-songartist')||{value:''}).value.trim(),
+    album:    (document.getElementById('sp-songalbum')||{value:''}).value.trim(),
+    year:     (document.getElementById('sp-songyear')||{value:''}).value.trim(),
+    coverSrc: (document.getElementById('sp-songcover')||{value:''}).value.trim()
   });
-  ['sp-songurl','sp-songtitle','sp-songartist','sp-songalbum','sp-songyear','sp-songcover'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  renderSelector();renderSongListSP();
-  const wasEmpty=curTrack===-1;
-  loadTrack(wasEmpty?newIdx:curTrack);
-  saveSongsToIDB();
-  saveToStorage();
-  toast(wasEmpty?'song added — hit play!':'song added ✓ synced globally');
+  renderSelector(); renderSongListSP();
+  if(curTrack === -1) loadTrack(0);
+  saveSongsToIDB(); saveToStorage();
+  toast('song added ✓');
 }
+
 function removeSong(i){songs.splice(i,1);if(curTrack>=songs.length)curTrack=songs.length-1;renderSelector();renderSongListSP();saveSongsToIDB();saveToStorage();}
 function renderSongListSP(){const el=document.getElementById('song-list-sp');el.innerHTML='';songs.forEach((s,i)=>{const d=document.createElement('div');d.className='song-sp-row';const m=[s.artist,s.album,s.year].filter(Boolean).join(' · ')||'no metadata';d.innerHTML=`<span class="song-sp-num">${String(i+1).padStart(2,'0')}</span><div class="song-sp-info"><div class="song-sp-title">${s.name}</div><div class="song-sp-meta">${m}</div></div><button class="song-sp-rm" onclick="removeSong(${i})">rm</button>`;el.appendChild(d)});if(!songs.length)el.innerHTML='<div style="font-family:\'Geist Mono\',monospace;font-size:.62rem;color:var(--muted);padding:6px 0;letter-spacing:1px;text-transform:uppercase">no songs yet</div>'}
 
@@ -1650,11 +1698,8 @@ window.applyProfileData = function applyProfileData(d){
       album: s.album||'', year: s.year||'', coverSrc: s.coverSrc||''
     }));
     renderSelector();
-    // Load track 0 into the player (sets src, updates UI) but don't autoplay
-    // User must press play — browser blocks autoplay without a gesture
-    const startTrack = playing ? curTrack : 0;
-    curTrack = -1; // reset so loadTrack treats it as fresh
-    loadTrack(startTrack);
+    // Set up track 0 in the player so it's ready to play on button press
+    if(!playing){ curTrack=-1; loadTrack(0); }
   }
 };
 // Flush any Firebase data that arrived before applyProfileData was defined
@@ -1734,17 +1779,7 @@ function buildGainNode(){
   }catch(e){}
 }
 
-// Boot audio as soon as page loads — plays muffled behind the enter screen
-// This requires the AudioContext to be created on first user interaction,
-// so we pre-load the audio element silently and play on click
-(async function preloadAudio(){
-  try{
-    if(songs.length && curTrack === -1) loadTrack(0);
-    // Set src and preload but don't play yet — browser won't block this
-    if(songs.length && songs[0]) audio.src = songs[0].url;
-    audio.preload = 'auto';
-  }catch(e){}
-})();
+
 
 function enterSite(e){
   if(entered) return;
@@ -1773,14 +1808,8 @@ function enterSite(e){
       document.body.appendChild(w);
       setTimeout(()=>w.remove(), 1000);
     }
-    // Ramp audio up
-    if(gainNode && audioCtx){
-      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 1.0);
-    } else {
-      audio.volume = document.getElementById('vol-sl').value / 100;
-    }
+    // Restore volume
+    audio.volume = document.getElementById('vol-sl').value / 100;
   }, 400);
 
   // Step 3: fade screen away after burst
@@ -1790,35 +1819,17 @@ function enterSite(e){
   }, 620);
 }
 
-async function onEnterClick(e){
-  // User gesture — now we can start AudioContext and play
+function onEnterClick(e){
+  // User gesture — set up AudioContext so visualiser works when they hit play
   try{
-    if(songs.length && curTrack === -1) loadTrack(0);
-
     if(!audioCtx){
-      audioCtx = new(window.AudioContext||window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize=256; analyser.smoothingTimeConstant=0.76;
-      if(!audioSrc){
-        audioSrc = audioCtx.createMediaElementSource(audio);
-        audioSrc.connect(analyser);
-        analyser.connect(audioCtx.destination);
-      }
-      freqData = new Uint8Array(analyser.frequencyBinCount);
-      audioReactLoop();
+      setupAnalyzer();
     } else if(audioCtx.state==='suspended'){
-      await audioCtx.resume();
+      audioCtx.resume();
     }
-
-    buildGainNode(); // sets gain to 0.10 (muffled)
-
-    if(songs.length && !playing){
-      audio.volume = 1.0; // gain node controls actual volume
-      await audio.play();
-      playing = true; updPP();
-    }
+    // Load track 0 into player so it's ready when they hit play
+    if(songs.length && curTrack === -1) loadTrack(0);
   }catch(err){}
-
   enterSite(e);
 }
 
