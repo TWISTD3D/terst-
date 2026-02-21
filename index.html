@@ -1387,37 +1387,36 @@ function uploadSongs(e){
   e.target.value='';
 }
 async function fetchTagsFromUrl(url){
-  return new Promise(resolve => {
-    if(typeof jsmediatags === 'undefined'){ resolve(null); return; }
-    // Try direct read first (works if server allows CORS)
-    function tryRead(src){
-      jsmediatags.read(src, {
+  // Fetch the audio binary then pass it to jsmediatags as a Blob.
+  // This works even when jsmediatags can't read the URL directly (CORS header issues).
+  if(typeof jsmediatags === 'undefined') return null;
+  try {
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const blob = new Blob([buf]);
+    return await new Promise(resolve => {
+      jsmediatags.read(blob, {
         onSuccess(tag){
           const t = tag.tags;
-          let cover = null;
           if(t.picture){
             const bytes = new Uint8Array(t.picture.data);
-            const blob = new Blob([bytes], {type: t.picture.format||'image/jpeg'});
+            const picBlob = new Blob([bytes], {type: t.picture.format||'image/jpeg'});
             const fr = new FileReader();
             fr.onload = ev => resolve({
               name: t.title||'', artist: t.artist||'',
               album: t.album||'', year: t.year ? String(t.year) : '',
               coverSrc: ev.target.result
             });
-            fr.readAsDataURL(blob);
+            fr.readAsDataURL(picBlob);
           } else {
             resolve({ name: t.title||'', artist: t.artist||'', album: t.album||'', year: t.year ? String(t.year) : '', coverSrc: '' });
           }
         },
         onError(){ resolve(null); }
       });
-    }
-    // Try via allorigins CORS proxy as fallback
-    const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    try { tryRead(proxied); } catch(e){ resolve(null); }
-    // Timeout after 8s
-    setTimeout(() => resolve(null), 8000);
-  });
+    });
+  } catch(e){ return null; }
 }
 
 async function bulkImportSongs(){
