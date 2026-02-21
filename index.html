@@ -728,8 +728,9 @@ let bgEnergy=0,currentEnergy=0,bassEnergy=0,avgEnergyHist=0.05,lastBeat=0;
 
 // ── COLOR EXTRACTION ──
 function extractFromDataUrl(dataUrl, cb){
-  if(!dataUrl||!dataUrl.startsWith('data:')){ cb(null); return; }
+  if(!dataUrl){ cb(null); return; }
   const img=new Image();
+  img.crossOrigin='anonymous'; // needed for https:// cover art URLs
   img.onload=()=>{
     try{
       const S=64,cc=document.getElementById('color-canvas');
@@ -1083,7 +1084,7 @@ for(let i=0;i<7;i++){const b=document.createElement('div');b.className='eq-b';b.
 function updateAlbumDisplay(s){
   const coverEl=document.getElementById('album-cover-display'),ini=document.getElementById('album-initials-el');
   if(s&&s.coverSrc){
-    coverEl.removeAttribute('crossorigin');
+    coverEl.crossOrigin='anonymous';
     ini.style.display='none';
     coverEl.style.display='block';
     coverEl.src=s.coverSrc;
@@ -1836,10 +1837,13 @@ function enterSite(e){
 
 function onEnterClick(e){
   try{
-    // Must create AudioContext on user gesture
     if(!audioCtx) setupAnalyzer();
     else if(audioCtx.state==='suspended') audioCtx.resume();
-    if(songs.length && curTrack === -1) loadTrack(0);
+    if(songs.length){
+      if(curTrack === -1) loadTrack(0);
+      // Autoplay on enter — this IS a user gesture so browser allows it
+      doPlay();
+    }
   }catch(err){}
   enterSite(e);
 }
