@@ -705,9 +705,21 @@ try {
 const cursorDot=document.getElementById('cursor-dot'),cursorRing=document.getElementById('cursor-ring');
 let mouseX=innerWidth/2,mouseY=innerHeight/2,ringX=mouseX,ringY=mouseY;
 const TRAIL=22,trailDots=[];
-for(let i=0;i<TRAIL;i++){const d=document.createElement('div');d.className='trail-dot';const sz=Math.max(1.5,7-i*0.22);d.style.cssText=`width:${sz}px;height:${sz}px;opacity:0;background:#50b4ff;display:none`;document.body.appendChild(d);trailDots.push({el:d,x:mouseX,y:mouseY})}
-document.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;cursorDot.style.left=mouseX+'px';cursorDot.style.top=mouseY+'px'});
-(function loopCursor(){ringX+=(mouseX-ringX)*0.1;ringY+=(mouseY-ringY)*0.1;cursorRing.style.left=ringX+'px';cursorRing.style.top=ringY+'px';for(let i=TRAIL-1;i>0;i--){trailDots[i].x=trailDots[i-1].x;trailDots[i].y=trailDots[i-1].y}trailDots[0].x=mouseX;trailDots[0].y=mouseY;trailDots.forEach((t,i)=>{t.el.style.opacity=(1-i/TRAIL)*0.55;t.el.style.left=t.x+'px';t.el.style.top=t.y+'px';t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.05,1-i*0.045)})`});requestAnimationFrame(loopCursor)})();
+let cursorActive=false;
+for(let i=0;i<TRAIL;i++){const d=document.createElement('div');d.className='trail-dot';const sz=Math.max(1.5,7-i*0.22);d.style.cssText=`width:${sz}px;height:${sz}px;opacity:0;background:#50b4ff`;document.body.appendChild(d);trailDots.push({el:d,x:mouseX,y:mouseY})}
+document.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;if(!cursorActive)return;cursorDot.style.left=mouseX+'px';cursorDot.style.top=mouseY+'px';});
+(function loopCursor(){
+  ringX+=(mouseX-ringX)*0.1;ringY+=(mouseY-ringY)*0.1;
+  if(cursorActive){
+    cursorRing.style.left=ringX+'px';cursorRing.style.top=ringY+'px';
+    for(let i=TRAIL-1;i>0;i--){trailDots[i].x=trailDots[i-1].x;trailDots[i].y=trailDots[i-1].y}
+    trailDots[0].x=mouseX;trailDots[0].y=mouseY;
+    trailDots.forEach((t,i)=>{t.el.style.opacity=(1-i/TRAIL)*0.55;t.el.style.left=t.x+'px';t.el.style.top=t.y+'px';t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.05,1-i*0.045)})`});
+  } else {
+    trailDots.forEach(t=>t.el.style.opacity='0');
+  }
+  requestAnimationFrame(loopCursor);
+})();
 
 // ── TILT ──
 const cardWrap=document.getElementById('card-wrap');
@@ -1795,10 +1807,10 @@ let entered = false;
 function enterSite(e){
   if(entered) return;
   entered = true;
-  // Reveal cursor on enter
+  // Activate cursor on enter
+  cursorActive=true;
   cursorDot.style.opacity='1';
   cursorRing.style.opacity='1';
-  trailDots.forEach(t=>t.el.style.display='');
   const screen = document.getElementById('enter-screen');
   const cx = e ? e.clientX : innerWidth/2;
   const cy = e ? e.clientY : innerHeight/2;
