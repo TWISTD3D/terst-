@@ -1,66 +1,49 @@
-<!-- FIREBASE BLOCK -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>snow</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDcGq4UF6wqKLcI7zidskV8OKOM06AUDTM",
-  authDomain: "server-19034.firebaseapp.com",
-  databaseURL: "https://server-19034-default-rtdb.firebaseio.com",
-  projectId: "server-19034",
-  storageBucket: "server-19034.firebasestorage.app",
+  apiKey:            "AIzaSyDcGq4UF6wqKLcI7zidskV8OKOM06AUDTM",
+  authDomain:        "server-19034.firebaseapp.com",
+  databaseURL:       "https://server-19034-default-rtdb.firebaseio.com",
+  projectId:         "server-19034",
+  storageBucket:     "server-19034.firebasestorage.app",
   messagingSenderId: "860267587022",
-  appId: "1:860267587022:web:83c5629f49a58789d1379f"
+  appId:             "1:860267587022:web:83c5629f49a58789d1379f"
 };
-
-let db, profileRef;
 
 try {
   const app = initializeApp(firebaseConfig);
-  db  = getDatabase(app);
-  profileRef = ref(db, 'profile');
+  const db  = getDatabase(app);
+  const profileRef = ref(db, 'profile');
 
   window._fbSet = (data) => set(profileRef, data);
   window._fbPending = null;
 
-onValue(profileRef, (snap) => {
-  const d = snap.exists() ? snap.val() : null;
-  if (!d) return;
+  onValue(profileRef, (snap) => {
+    const d = snap.exists() ? snap.val() : null;
+    if (!d) return;
+    if (window.applyProfileData) {
+      window.applyProfileData(d);
+    } else {
+      window._fbPending = d;
+    }
+  }, (err) => console.warn('Firebase read error:', err));
 
-  // 1. Apply profile data first
-  if (window.applyProfileData) {
-    window.applyProfileData(d);
-  } else {
-    window._fbPending = d;
-  }
-
-  // 2. Apply songs AFTER profile is loaded
-  if (d.songs) {
-    applySongs(d.songs);
-  }
-});
-
-
-  console.log("Firebase connected ✓");
-
-} catch (e) {
-  console.warn("Firebase init failed — using local storage only:", e);
+  window._fbReady = true;
+  console.log('Firebase connected ✓');
+} catch(e) {
+  console.warn('Firebase init failed:', e);
 }
-
-window.addEventListener("DOMContentLoaded", () => {
-  if (window._fbPending) {
-    window.applyProfileData(window._fbPending);
-    window._fbPending = null;
-  }
-});
 </script>
-
-<!-- SEPARATE SCRIPT FOR sync.js -->
-<script type="module">
-  import { initFirebaseSync } from './sync.js';
-  initFirebaseSync();
-</script>
-
 <style>
   :root {
     --bg: #080e1e;
@@ -107,7 +90,7 @@ window.addEventListener("DOMContentLoaded", () => {
   .banner-orb.b2{width:65px;height:65px;background:rgba(56,212,255,0.24);top:-15px;right:22%;animation:orbFloat 7.5s ease-in-out infinite reverse}
   .banner-orb.b3{width:50px;height:50px;background:rgba(144,220,255,0.20);top:-20px;left:55%;animation:orbFloat 5s ease-in-out infinite 1.2s}
 
-  .profile-wrap{padding:0 20px 18px;position:relative}
+  .-wrap{padding:0 20px 18px;position:relative}
   .avatar-outer{position:absolute;top:-44px;left:22px;width:84px;height:84px}
   .avatar-ring{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(#50b4ff,#90dcff,#2090e8,#40e8ff,#50b4ff);animation:ringRotate 5s linear infinite;z-index:0;transition:background 0.8s}
   @keyframes ringRotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
@@ -117,7 +100,7 @@ window.addEventListener("DOMContentLoaded", () => {
   .avatar-img img{width:100%;height:100%;object-fit:cover;border-radius:50%}
   .avatar-upload-hint{display:none}
   .avatar-status{position:absolute;bottom:4px;right:4px;width:14px;height:14px;border-radius:50%;background:var(--red);border:2.5px solid #0e1220;z-index:4;transition:background .3s;box-shadow:0 0 6px currentColor}
-  .profile-header{padding-top:52px;margin-bottom:10px}
+  .-header{padding-top:52px;margin-bottom:10px}
   .username-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
   .username{font-family:'Syne',sans-serif;font-size:1.32rem;font-weight:800;color:rgba(235,245,255,0.97);letter-spacing:-.03em;line-height:1}
   .cursor-blink{display:inline-block;width:2px;height:1.1em;background:var(--accent);margin-left:1px;vertical-align:text-top;animation:blink 1s step-end infinite;border-radius:1px;transition:background 0.8s}
@@ -232,13 +215,7 @@ window.addEventListener("DOMContentLoaded", () => {
   .song-list-sp{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;margin-top:8px}
   .song-list-sp::-webkit-scrollbar{width:3px}
   .song-list-sp::-webkit-scrollbar-thumb{background:rgba(60,160,240,0.15);border-radius:2px}
-  .song-sp-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border);transition:background .15s,border-color .15s,opacity .15s}
-  .song-sp-row.dragging{opacity:0.35;border-color:rgba(80,180,255,0.35)}
-  .song-sp-row.drag-over{background:rgba(80,180,255,0.07);border-color:rgba(80,180,255,0.35)}
-  .song-sp-handle{display:flex;flex-direction:column;gap:2.5px;padding:2px 3px;cursor:grab;flex-shrink:0;opacity:0.3;transition:opacity .15s}
-  .song-sp-handle:active{cursor:grabbing}
-  .song-sp-row:hover .song-sp-handle{opacity:0.7}
-  .song-sp-handle span{display:block;width:12px;height:1.5px;background:var(--muted);border-radius:1px}
+  .song-sp-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)}
   .song-sp-num{font-family:'Geist Mono',monospace;font-size:.57rem;color:var(--muted);width:16px;flex-shrink:0}
   .song-sp-info{flex:1;min-width:0}
   .song-sp-title{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;color:rgba(200,220,255,0.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -489,7 +466,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
 <video id="bg-video" autoplay loop muted playsinline></video>
 <canvas id="bg-canvas"></canvas>
-<div class="bg-overlay" id="bg-overlay" style="opacity:1"></div>
+<div class="bg-overlay" id="bg-overlay"></div>
 
 <div id="scene">
   <div class="card-wrap" id="card-wrap">
@@ -501,7 +478,7 @@ window.addEventListener("DOMContentLoaded", () => {
       <div class="banner-orb b2" id="orb2"></div>
       <div class="banner-orb b3" id="orb3"></div>
     </div>
-    <div class="profile-wrap">
+    <div class="-wrap">
       <div class="avatar-outer" id="avatar-outer">
         <div class="avatar-ring" id="avatar-ring"></div>
         <div class="avatar-img" id="avatar-el">
@@ -515,7 +492,7 @@ window.addEventListener("DOMContentLoaded", () => {
       </div>
       <input type="file" id="avatar-file" accept="image/*" onchange="setAvatar(event)">
       <input type="file" id="pfp-file" accept="image/*" onchange="setAvatar(event)">
-      <div class="profile-header">
+      <div class="-header">
         <div class="username-row">
           <span class="username" id="username-el">twistedtbh</span><span class="cursor-blink" id="cursor-blink-el"></span>
           <div class="badges" id="badges-el">
@@ -530,10 +507,10 @@ window.addEventListener("DOMContentLoaded", () => {
       </div>
       <div class="divider" id="divider-el"></div>
       <div class="socials">
-        <button class="social-btn" id="s-github" onclick="var u=socialLinks['github'];if(u&&u!=='#')window.open(u,'_blank')"><svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.37.6.11.82-.26.82-.58l-.01-2.03c-3.34.73-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.48 5.92.43.37.81 1.1.81 2.22l-.01 3.29c0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>gh</button>
-        <button class="social-btn" id="s-discord" onclick="var u=socialLinks['discord'];if(u&&u!=='#')window.open(u,'_blank')"><svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.077.077 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>dc</button>
-        <button class="social-btn" id="s-twitter" onclick="var u=socialLinks['twitter'];if(u&&u!=='#')window.open(u,'_blank')"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>x</button>
-        <button class="social-btn" id="s-tiktok" onclick="var u=socialLinks['tiktok'];if(u&&u!=='#')window.open(u,'_blank')"><svg viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.26 8.26 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>tt</button>
+        <a class="social-btn" href="#" id="s-github"><svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.37.6.11.82-.26.82-.58l-.01-2.03c-3.34.73-4.04-1.61-4.04-1.61-.54-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.63-5.48 5.92.43.37.81 1.1.81 2.22l-.01 3.29c0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>gh</a>
+        <a class="social-btn" href="#" id="s-discord"><svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.077.077 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>dc</a>
+        <a class="social-btn" href="#" id="s-twitter"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>x</a>
+        <a class="social-btn" href="#" id="s-tiktok"><svg viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.26 8.26 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/></svg>tt</a>
       </div>
       <div class="view-count"><div class="view-count-dot" id="view-dot"></div><span id="view-num">9,360</span> views</div>
     </div>
@@ -564,7 +541,7 @@ window.addEventListener("DOMContentLoaded", () => {
       <div class="song-selector" id="song-selector"></div>
       <div class="sliders-row">
         <div class="slider-group"><span class="slider-label" id="vol-label" onclick="toggleMute()">vol</span><input type="range" class="custom-slider" id="vol-sl" min="0" max="100" value="70" oninput="setVol(this.value)"></div>
-        <div class="slider-group"><span class="slider-label" id="bright-label">dim</span><input type="range" class="custom-slider" id="bright-sl" min="0" max="100" value="0" oninput="setBrightness(this.value)"></div>
+        <div class="slider-group"><span class="slider-label" id="bright-label">dim</span><input type="range" class="custom-slider" id="bright-sl" min="0" max="100" value="50" oninput="setBrightness(this.value)"></div>
       </div>
     </div>
     <div class="presence-section">
@@ -623,14 +600,16 @@ window.addEventListener("DOMContentLoaded", () => {
   <div class="settings-panel">
     <div class="sp-header"><div class="sp-title">Customize</div><div class="sp-close" onclick="closeSettings()">esc</div></div>
     <div class="sp-section">
-      <div class="sp-section-title">Profile Picture</div>
+      <div class="sp-section-title"> Picture</div>
       <div class="pfp-upload-row">
         <div class="pfp-preview-mini" id="pfp-mini"><img id="pfp-mini-img" src="" style="display:none" alt=""><span id="pfp-mini-txt">pfp</span></div>
         <button class="pfp-btn" onclick="document.getElementById('pfp-file').click()"><span>upload pfp</span>jpg · png · gif · webp</button>
       </div>
+      <div style="margin-top:6px"><label class="sp-field-label">pfp url — paste catbox/imgur link (visible to everyone)</label><input class="sp-input" id="sp-pfpurl" placeholder="https://files.catbox.moe/..." maxlength="300"></div>
+      <p class="small-note">upload is for your preview only — paste a public URL so all visitors see it</p>
     </div>
     <div class="sp-section">
-      <div class="sp-section-title">Profile</div>
+      <div class="sp-section-title"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div><label class="sp-field-label">Username</label><input class="sp-input" id="sp-name" placeholder="twistedtbh" maxlength="24"></div>
         <div><label class="sp-field-label">Avatar fallback</label><input class="sp-input" id="sp-pfp" placeholder="pfp" maxlength="6"></div>
@@ -714,7 +693,7 @@ let tiltX=0,tiltY=0,floatA=0;
 let OWNER_PW='twisted123',isAuthed=false,songs=[],curTrack=-1,playing=false,shuf=false,rep=false,muted=false;
 const audio=new Audio();
 let views=9360,badgeData=['owner','mod','vip','pro'],volLabel='vol',brightLabel='dim',currentStatus='offline';
-let socialLinks={github:'#',discord:'#',twitter:'#',tiktok:'#'},pendingSongCoverBlob=null,storedAvatarDataUrl='';
+let socialLinks={github:'#',discord:'#',twitter:'#',tiktok:'#'},pendingSongCoverBlob=null,storedAvatarDataUrl='',storedPfpUrl='';
 
 // ── PALETTE STATE ──
 let pal=[[80,180,255],[56,212,255],[144,220,255]];
@@ -859,9 +838,9 @@ function audioReactLoop(){
   if(audioCtx.state==='suspended')audioCtx.resume();
   analyser.getByteFrequencyData(freqData);
   const N=freqData.length,bass=avgR(0,5),low=avgR(5,15),mid=avgR(15,40),hi=avgR(40,N);
-  const energy=Math.min(1,(bass*0.5+low*0.25+mid*0.15+hi*0.1)/255*4.2);
-  currentEnergy=currentEnergy*0.60+energy*0.40;
-  bassEnergy=bassEnergy*0.55+(bass/255)*0.45;
+  const energy=(bass*0.5+low*0.25+mid*0.15+hi*0.1)/255;
+  currentEnergy=currentEnergy*0.75+energy*0.25;
+  bassEnergy=bassEnergy*0.72+(bass/255)*0.28;
   avgEnergyHist=avgEnergyHist*0.965+energy*0.035;
   bgEnergy=currentEnergy;
   // EQ from real freq data
@@ -870,25 +849,25 @@ function audioReactLoop(){
   if(!playing)return;
   const [r,g,b]=pal[0],[r2,g2,b2]=pal[1];
   // card glow
-  const gs=40+currentEnergy*160,ga=0.06+currentEnergy*0.58,ba=0.04+bassEnergy*0.38;
+  const gs=50+currentEnergy*110,ga=0.08+currentEnergy*0.38,ba=0.05+bassEnergy*0.22;
   document.getElementById('card-el').style.boxShadow=`0 0 0 1px rgba(${r},${g},${b},${ba}),0 40px 90px rgba(0,0,0,0.35),0 0 ${gs}px rgba(${r},${g},${b},${ga}),inset 0 1px 0 rgba(255,255,255,0.05)`;
   // prog glow
-  document.getElementById('prog-fill').style.boxShadow=`0 0 ${5+currentEnergy*38}px rgba(${r},${g},${b},${0.22+currentEnergy*0.72})`;
+  document.getElementById('prog-fill').style.boxShadow=`0 0 ${5+currentEnergy*22}px rgba(${r},${g},${b},${0.28+currentEnergy*0.52})`;
   // ring speed
-  document.getElementById('avatar-ring').style.animationDuration=Math.max(0.3,5-currentEnergy*12)+'s';
+  document.getElementById('avatar-ring').style.animationDuration=Math.max(0.5,5-currentEnergy*7)+'s';
   // orb scale
-  document.getElementById('orb1').style.transform=`scale(${1+bassEnergy*1.1})`;
-  document.getElementById('orb2').style.transform=`scale(${1+(mid/255)*0.9})`;
-  document.getElementById('orb3').style.transform=`scale(${1+(hi/255)*0.75})`;
-  document.getElementById('banner-glow').style.background=`radial-gradient(ellipse at 50% 170%,rgba(${r},${g},${b},${0.14+bassEnergy*0.55}) 0%,transparent 55%)`;
+  document.getElementById('orb1').style.transform=`scale(${1+bassEnergy*0.65})`;
+  document.getElementById('orb2').style.transform=`scale(${1+(mid/255)*0.55})`;
+  document.getElementById('orb3').style.transform=`scale(${1+(hi/255)*0.45})`;
+  document.getElementById('banner-glow').style.background=`radial-gradient(ellipse at 50% 170%,rgba(${r},${g},${b},${0.18+bassEnergy*0.32}) 0%,transparent 55%)`;
   // beat
   const now=Date.now();
-  if(energy>avgEnergyHist*1.18&&bass>28&&(now-lastBeat)>200){
+  if(energy>avgEnergyHist*1.42&&bass>85&&(now-lastBeat)>200){
     lastBeat=now;
     document.getElementById('card-el').style.boxShadow=`0 0 0 2px rgba(${r},${g},${b},0.75),0 40px 90px rgba(0,0,0,0.32),0 0 120px rgba(${r},${g},${b},0.55),inset 0 1px 0 rgba(255,255,255,0.08)`;
-    const alb=document.getElementById('album-art-el');alb.style.transition='transform 0.04s,box-shadow 0.04s';alb.style.transform='scale(1.16)';alb.style.boxShadow=`0 0 45px rgba(${r},${g},${b},0.7)`;
+    const alb=document.getElementById('album-art-el');alb.style.transition='transform 0.04s,box-shadow 0.04s';alb.style.transform='scale(1.1)';alb.style.boxShadow=`0 0 30px rgba(${r},${g},${b},0.5)`;
     setTimeout(()=>{alb.style.transform='';alb.style.boxShadow='';alb.style.transition='all .3s'},130);
-    document.getElementById('orb1').style.transform=`scale(${2.0+bassEnergy*0.5})`;
+    document.getElementById('orb1').style.transform=`scale(${1.6+bassEnergy*0.3})`;
     setTimeout(()=>document.getElementById('orb1').style.transform='',200);
   }
 }
@@ -942,16 +921,16 @@ let bgSmooth=0, bgWave=0, bgFlash=0, bgFrame=0;
   if(!bgActive)return;
   bgFrame++;
 
-  bgSmooth += (bgEnergy      - bgSmooth) * 0.028;
-  bgWave   += (currentEnergy - bgWave)   * 0.050;
-  bgFlash  += (bassEnergy    - bgFlash)  * 0.18;
+  bgSmooth += (bgEnergy      - bgSmooth) * 0.016;
+  bgWave   += (currentEnergy - bgWave)   * 0.032;
+  bgFlash  += (bassEnergy    - bgFlash)  * 0.12;
 
   // Per-band smoothers for aurora blobs
   if(freqData){
     const N=freqData.length;
-    const rawBass=Math.min(1,(freqData[0]+freqData[1]+freqData[2]+freqData[3]+freqData[4])/5/255*4.2);
-    const rawMid=Math.min(1,Array.from({length:25},(_,i)=>freqData[15+i]).reduce((a,b)=>a+b,0)/25/255*4.2);
-    const rawHi=Math.min(1,Array.from({length:20},(_,i)=>freqData[40+i]).reduce((a,b)=>a+b,0)/20/255*4.2);
+    const rawBass=(freqData[0]+freqData[1]+freqData[2]+freqData[3]+freqData[4])/5/255;
+    const rawMid=Array.from({length:25},(_,i)=>freqData[15+i]).reduce((a,b)=>a+b,0)/25/255;
+    const rawHi=Array.from({length:20},(_,i)=>freqData[40+i]).reduce((a,b)=>a+b,0)/20/255;
     freqBass += (rawBass - freqBass) * 0.10;
     freqMid  += (rawMid  - freqMid)  * 0.08;
     freqHi   += (rawHi   - freqHi)   * 0.07;
@@ -964,7 +943,7 @@ let bgSmooth=0, bgWave=0, bgFlash=0, bgFrame=0;
 
   // Live palette — read every frame so blobs react instantly to album art changes
   const palRGB=[pal[0]||[80,180,255], pal[1]||[56,212,255], pal[2]||[144,220,255]];
-  const spFast = 0.70 + bgSmooth*0.55 + bgFlash*0.45;
+  const spFast = 0.70 + bgSmooth*0.40 + bgFlash*0.28;
   const spSlow = 0.26 + bgSmooth*0.14 + bgFlash*0.08;
 
   // ── T4: AURORA BLOBS ──
@@ -981,8 +960,8 @@ let bgSmooth=0, bgWave=0, bgFlash=0, bgFrame=0;
 
     // Blob swells with its own freq band
     const be = bandEnergy[p.band] || 0;
-    const breathe = 1 + Math.sin(bgFrame*0.005+p.phase)*0.16 + bgSmooth*0.28 + be*0.90;
-    const alpha   = 0.06 + bgSmooth*0.10 + bgFlash*0.08 + be*0.18;
+    const breathe = 1 + Math.sin(bgFrame*0.005+p.phase)*0.16 + bgSmooth*0.18 + be*0.55;
+    const alpha   = 0.06 + bgSmooth*0.07 + bgFlash*0.04 + be*0.10;
 
     const W=p.rx*breathe, H=p.ry*breathe;
     const grad=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,W);
@@ -1188,7 +1167,7 @@ function toggleRepeat(){ rep=!rep; document.getElementById('repeat-c').className
 function setVol(v){ audio.volume=v/100; muted=v==0; document.getElementById('vol-label').textContent=v==0?'mute':v<40?'low':volLabel; }
 function toggleMute(){ muted=!muted; if(muted){audio.volume=0;document.getElementById('vol-sl').value=0;document.getElementById('vol-label').textContent='mute';}else{audio.volume=.7;document.getElementById('vol-sl').value=70;document.getElementById('vol-label').textContent=volLabel;} }
 function seekAudio(e,el){ if(!audio.duration)return; const r=el.querySelector('.prog-track').getBoundingClientRect(); audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration; }
-function setBrightness(v){ document.getElementById('bg-overlay').style.opacity=1.0; }
+function setBrightness(v){ document.getElementById('bg-overlay').style.opacity=.4+(1-v/100)*.6; }
 function fmt(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 
 // Audio events — these are the only reliable way to drive playback
@@ -1219,57 +1198,27 @@ audio.addEventListener('error', ()=>{
 });
 audio.addEventListener('waiting', ()=>{ /* buffering — could show spinner here */ });
 
+// ──  PICTURE ──
 function setAvatar(e){
-  const f = e.target.files[0];
-  if(!f) return;
-
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 220;
-      let w = img.width, h = img.height;
-      if(w > MAX || h > MAX){
-        const sc = Math.min(MAX/w, MAX/h);
-        w = Math.round(w * sc);
-        h = Math.round(h * sc);
-      }
-
-      const c = document.createElement('canvas');
-      c.width = w;
-      c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-
-      const url = c.toDataURL('image/jpeg', 0.88);
-
-      // Update UI
-      const imgEl = document.getElementById('avatar-img-el');
-      imgEl.src = url;
-      imgEl.style.display = 'block';
-      document.getElementById('avatar-fallback').style.display = 'none';
-
-      const m = document.getElementById('pfp-mini-img');
-      m.src = url;
-      m.style.display = 'block';
-      document.getElementById('pfp-mini-txt').style.display = 'none';
-
-      // Save locally
-      storedAvatarDataUrl = url;
-      savePfpToIDB();
-
-      // 🔥 Save to Firebase under "pfp"
-      if (window._fbSet) {
-        window._fbSet({ pfp: url });
-      }
-
-      saveToStorage();
-      toast('profile picture updated');
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(f);
+  const f=e.target.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=220;let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){const sc=Math.min(MAX/w,MAX/h);w=Math.round(w*sc);h=Math.round(h*sc)}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      const url=c.toDataURL('image/jpeg',0.88);
+      const imgEl=document.getElementById('avatar-img-el');imgEl.src=url;imgEl.style.display='block';
+      document.getElementById('avatar-fallback').style.display='none';
+      const m=document.getElementById('pfp-mini-img');m.src=url;m.style.display='block';
+      document.getElementById('pfp-mini-txt').style.display='none';
+      storedAvatarDataUrl=url;
+      savePfpToIDB();saveToStorage();toast('profile picture updated');
+    };img.src=ev.target.result;
+  };reader.readAsDataURL(f);
 }
-
 // pfp only changeable via settings
 
 // ── PASSWORD ──
@@ -1300,14 +1249,13 @@ function openSettings(){
   document.getElementById('link-discord').value=socialLinks.discord==='#'?'':socialLinks.discord;
   document.getElementById('link-twitter').value=socialLinks.twitter==='#'?'':socialLinks.twitter;
   document.getElementById('link-tiktok').value=socialLinks.tiktok==='#'?'':socialLinks.tiktok;
+  const pfpUrlInp = document.getElementById('sp-pfpurl');
+  if(pfpUrlInp) pfpUrlInp.value = storedPfpUrl || '';
   const as=document.getElementById('avatar-img-el').src;
   if(as&&as.length>50){const m=document.getElementById('pfp-mini-img');m.src=as;m.style.display='block';document.getElementById('pfp-mini-txt').style.display='none'}
   renderBadgeGrid();renderSongListSP();
 }
-function closeSettings(){
-  document.getElementById('settings-overlay').classList.remove('open');
-}
-
+function closeSettings(){document.getElementById('settings-overlay').classList.remove('open')}
 function saveSettings(){
   const name=document.getElementById('sp-name').value.trim()||'twistedtbh';
   const bio=document.getElementById('sp-bio').value.trim();
@@ -1317,81 +1265,28 @@ function saveSettings(){
   const bgurl=document.getElementById('sp-bgurl').value.trim();
   const nv=document.getElementById('edit-vol-icon').value.trim();
   const nb=document.getElementById('edit-bright-icon').value.trim();
-
   document.getElementById('username-el').textContent=name;
-
-  if(bio){
-    bioTexts=[bio];bIdx=0;bCh=0;bDel=false;
-    document.getElementById('bio-text').textContent='';
-    setTimeout(typeBio,400);
-  }
-
-  if(tab){
-    tabTexts=[tab];tIdx=0;tCh=0;tDel=false;
-    setTimeout(runTypeTab,400);
-  }
-
-  if(pfp) document.getElementById('avatar-fallback').textContent=pfp;
-  if(nv){ volLabel=nv; document.getElementById('vol-label').textContent=nv; }
-  if(nb){ brightLabel=nb; document.getElementById('bright-label').textContent=nb; }
-
+  if(bio){bioTexts=[bio];bIdx=0;bCh=0;bDel=false;document.getElementById('bio-text').textContent='';setTimeout(typeBio,400)}
+  if(tab){tabTexts=[tab];tIdx=0;tCh=0;tDel=false;setTimeout(runTypeTab,400)}
+  if(pfp)document.getElementById('avatar-fallback').textContent=pfp;
+  const pfpUrlVal=(document.getElementById('sp-pfpurl')||{value:''}).value.trim();
+  if(pfpUrlVal){storedPfpUrl=pfpUrlVal;applyPfpUrl(storedPfpUrl);}
+  if(nv){volLabel=nv;document.getElementById('vol-label').textContent=nv}
+  if(nb){brightLabel=nb;document.getElementById('bright-label').textContent=nb}
   const gv=id=>{const x=document.getElementById(id).value.trim();return x||'#'};
-  socialLinks={
-    github:gv('link-github'),
-    discord:gv('link-discord'),
-    twitter:gv('link-twitter'),
-    tiktok:gv('link-tiktok')
-  };
-
-  ['github','discord','twitter','tiktok'].forEach(k=>{
-    const el=document.getElementById('s-'+k);
-    el.href=socialLinks[k]||'#';
-    el.target='_blank';
-    el.rel='noopener noreferrer';
-  });
-
+  socialLinks={github:gv('link-github'),discord:gv('link-discord'),twitter:gv('link-twitter'),tiktok:gv('link-tiktok')};
+  ['github','discord','twitter','tiktok'].forEach(k=>document.getElementById('s-'+k).href=socialLinks[k]);
   applyBadges();
-
-  const sc={offline:'#f0a8b4',online:'#a8f0c6',dnd:'#f0d8a0'};
-  const col=sc[status]||'#f0a8b4';
-  currentStatus=status;
-  document.getElementById('status-dot').style.background=col;
-  document.getElementById('status-dot2').style.background=col;
+  const sc={offline:'#f0a8b4',online:'#a8f0c6',dnd:'#f0d8a0'};const col=sc[status]||'#f0a8b4';
+  currentStatus=status;document.getElementById('status-dot').style.background=col;document.getElementById('status-dot2').style.background=col;
   document.getElementById('status-text-el').textContent=status==='dnd'?'do not disturb':status;
-
-  if(bgurl) setVideo(bgurl);
-
-  views+=Math.floor(Math.random()*10)+1;
-  document.getElementById('view-num').textContent=views.toLocaleString();
-
-  // LOCAL SAVE
-// LOCAL SAVE
-const publicMeta = {
-  username: document.getElementById('username-el').textContent,
-  bio: bioTexts[0]||'',
-  tab: tabTexts[0]||'',
-  status: currentStatus,
-  badges: badgeData,
-  volLabel,
-  brightLabel,
-  pfpText: document.getElementById('avatar-fallback').textContent,
-  socialLinks,
-  pfp: storedAvatarDataUrl   // ⭐ NEW
-};
-
-// Save to Firebase
-if (window._fbSet) {
-  window._fbSet(publicMeta);
+  if(bgurl)setVideo(bgurl);
+  views+=Math.floor(Math.random()*10)+1;document.getElementById('view-num').textContent=views.toLocaleString();
+  saveToStorage();closeSettings();toast('saved & published');
 }
-
-// Save locally
-saveToStorage();
-
-closeSettings();
-toast('saved & published');
-
-
-
+function setVideo(url){const v=document.getElementById('bg-video');v.src=url;v.style.display='block';bgActive=false;canvas.style.display='none'}
+function uploadBg(e){const f=e.target.files[0];if(!f)return;setVideo(URL.createObjectURL(f));toast('video background set')}
+function readMp3Tags(file, idx){
   // Try ID3 via jsmediatags
   if(typeof jsmediatags === 'undefined') return;
   try {
@@ -1504,54 +1399,7 @@ function addSongUrl(){
   toast(wasEmpty?'song added — hit play!':'song added');
 }
 function removeSong(i){songs.splice(i,1);if(curTrack>=songs.length)curTrack=songs.length-1;renderSelector();renderSongListSP();saveSongsToIDB();saveToStorage();}
-
-let _dragIdx=null;
-function renderSongListSP(){
-  const el=document.getElementById('song-list-sp');
-  el.innerHTML='';
-  if(!songs.length){el.innerHTML='<div style="font-family:\'Geist Mono\',monospace;font-size:.62rem;color:var(--muted);padding:6px 0;letter-spacing:1px;text-transform:uppercase">no songs yet</div>';return;}
-  songs.forEach((s,i)=>{
-    const d=document.createElement('div');
-    d.className='song-sp-row';
-    d.draggable=true;
-    const m=[s.artist,s.album,s.year].filter(Boolean).join(' · ')||'no metadata';
-    d.innerHTML=`<div class="song-sp-handle"><span></span><span></span><span></span></div><span class="song-sp-num">${String(i+1).padStart(2,'0')}</span><div class="song-sp-info"><div class="song-sp-title">${s.name}</div><div class="song-sp-meta">${m}</div></div><button class="song-sp-rm" onclick="removeSong(${i})">rm</button>`;
-
-    // Drag events
-    d.addEventListener('dragstart',e=>{
-      _dragIdx=i;
-      d.classList.add('dragging');
-      e.dataTransfer.effectAllowed='move';
-      e.dataTransfer.setDragImage(d,0,0);
-    });
-    d.addEventListener('dragend',()=>{
-      _dragIdx=null;
-      document.querySelectorAll('.song-sp-row').forEach(r=>r.classList.remove('dragging','drag-over'));
-    });
-    d.addEventListener('dragover',e=>{
-      e.preventDefault();e.dataTransfer.dropEffect='move';
-      if(_dragIdx!==null&&_dragIdx!==i) d.classList.add('drag-over');
-    });
-    d.addEventListener('dragleave',()=>d.classList.remove('drag-over'));
-    d.addEventListener('drop',e=>{
-      e.preventDefault();
-      d.classList.remove('drag-over');
-      if(_dragIdx===null||_dragIdx===i)return;
-      // Reorder
-      const moved=songs.splice(_dragIdx,1)[0];
-      const newI=_dragIdx<i?i-1:i; // adjust for splice
-      songs.splice(newI,0,moved);
-      // Keep curTrack pointing to same song
-      if(curTrack===_dragIdx) curTrack=newI;
-      else if(_dragIdx<curTrack&&newI>=curTrack) curTrack--;
-      else if(_dragIdx>curTrack&&newI<=curTrack) curTrack++;
-      renderSelector();renderSongListSP();
-      saveSongsToIDB();saveToStorage();
-    });
-
-    el.appendChild(d);
-  });
-}
+function renderSongListSP(){const el=document.getElementById('song-list-sp');el.innerHTML='';songs.forEach((s,i)=>{const d=document.createElement('div');d.className='song-sp-row';const m=[s.artist,s.album,s.year].filter(Boolean).join(' · ')||'no metadata';d.innerHTML=`<span class="song-sp-num">${String(i+1).padStart(2,'0')}</span><div class="song-sp-info"><div class="song-sp-title">${s.name}</div><div class="song-sp-meta">${m}</div></div><button class="song-sp-rm" onclick="removeSong(${i})">rm</button>`;el.appendChild(d)});if(!songs.length)el.innerHTML='<div style="font-family:\'Geist Mono\',monospace;font-size:.62rem;color:var(--muted);padding:6px 0;letter-spacing:1px;text-transform:uppercase">no songs yet</div>'}
 
 // ── STORAGE ──
 // ── STORAGE: IndexedDB (no size limit) ──
@@ -1609,22 +1457,71 @@ async function storageLoad(key){
   try{ return localStorage.getItem(key); }catch(e){ return null; }
 }
 async function saveToStorage(){
-  // Public settings go to Firebase so all visitors see them instantly
+  // Strip songs down to URL-only so Firebase can store them (no base64 blobs)
+  const songsMeta = songs
+    .filter(s => s.url && !s.url.startsWith('blob:') && !s.url.startsWith('data:'))
+    .map(s => ({
+      url: s.url,
+      name: s.name||'', artist: s.artist||'',
+      album: s.album||'', year: s.year||'',
+      coverSrc: (s.coverSrc && !s.coverSrc.startsWith('blob:') && !s.coverSrc.startsWith('data:')) ? s.coverSrc : ''
+    }));
+
   const publicMeta = {
     username: document.getElementById('username-el').textContent,
     bio: bioTexts[0]||'', tab: tabTexts[0]||'', status: currentStatus,
     badges: badgeData, volLabel, brightLabel,
     pfpText: document.getElementById('avatar-fallback').textContent,
-    socialLinks
+    socialLinks,
+    pfpUrl: storedPfpUrl || '',   // public URL (catbox/imgur) — works on all devices
+    songs: songsMeta              // catbox URLs — streams on all devices, no 60MB download
   };
+
+  // Push to Firebase — all visitors see this immediately on any device
   if(window._fbSet){
     try{ await window._fbSet(publicMeta); }catch(e){ console.warn('Firebase save failed',e); }
   }
-  // Also persist locally as fallback (includes views counter)
+  // Also save locally as fallback
   try{ await storageSave('profile_v5_meta', JSON.stringify({...publicMeta, views})); }catch(e){}
 }
 
+function applyPfpUrl(url){
+  if(!url) return;
+  const i = document.getElementById('avatar-img-el');
+  i.removeAttribute('crossorigin');
+  i.src = url; i.style.display = 'block';
+  document.getElementById('avatar-fallback').style.display = 'none';
+  const m = document.getElementById('pfp-mini-img');
+  if(m){ m.src=url; m.style.display='block'; }
+  const mt = document.getElementById('pfp-mini-txt');
+  if(mt) mt.style.display='none';
+}
+
+async function savePfpToIDB(){
+  // Save local base64 so settings panel preview works for the owner
+  try{
+    const src = storedAvatarDataUrl || '';
+    if(src && src.startsWith('data:')) await storageSave('profile_pfp', src);
+  }catch(e){}
+}
+
+async function loadPfpFromIDB(){
+  // Only used for the owner's settings preview — not for global display
+  try{
+    const src = await storageLoad('profile_pfp');
+    if(src && src.length > 50){
+      storedAvatarDataUrl = src;
+      const m = document.getElementById('pfp-mini-img');
+      if(m){ m.src=src; m.style.display='block'; }
+      const mt = document.getElementById('pfp-mini-txt');
+      if(mt) mt.style.display='none';
+    }
+  }catch(e){}
+}
+
 async function saveSongsToIDB(){
+  // Saves full songs array (with b64 audio) to IDB songs store
+  // Each song gets its own record — no size limits, all or nothing atomically
   try {
     await idbClear('songs');
     for(const s of songs){
@@ -1637,31 +1534,6 @@ async function saveSongsToIDB(){
       });
     }
   } catch(e) { console.error('saveSongs failed',e); }
-}
-
-async function savePfpToIDB(){
-  // PFP is too large for Firebase — store in IndexedDB so it survives reloads
-  try{
-    const src = storedAvatarDataUrl || '';
-    if(src && src.startsWith('data:')) await storageSave('profile_pfp', src);
-  }catch(e){}
-}
-
-async function loadPfpFromIDB(){
-  try{
-    const src = await storageLoad('profile_pfp');
-    if(src && src.length > 50){
-      const i = document.getElementById('avatar-img-el');
-      i.src = src; i.style.display = 'block';
-      document.getElementById('avatar-fallback').style.display = 'none';
-      storedAvatarDataUrl = src;
-      // Also update settings preview
-      const m = document.getElementById('pfp-mini-img');
-      if(m){ m.src=src; m.style.display='block'; }
-      const mt = document.getElementById('pfp-mini-txt');
-      if(mt) mt.style.display='none';
-    }
-  }catch(e){}
 }
 window.applyProfileData = function applyProfileData(d){
   if(!d) return;
@@ -1688,13 +1560,26 @@ window.applyProfileData = function applyProfileData(d){
       if(el){ el.href=socialLinks[k]||'#'; el.target='_blank'; el.rel='noopener noreferrer'; }
     });
   }
-}
-// Flush any Firebase data that arrived before this function was defined
+  // PFP as a public URL (catbox/imgur) — loads on ALL devices globally
+  if(d.pfpUrl && d.pfpUrl.length > 8){
+    storedPfpUrl = d.pfpUrl;
+    applyPfpUrl(d.pfpUrl);
+  }
+  // Songs as catbox URLs — streams on all devices without downloading 60MB
+  if(d.songs && Array.isArray(d.songs) && d.songs.length){
+    songs = d.songs.map(s=>({
+      url: s.url, b64:'', name: s.name||'', artist: s.artist||'',
+      album: s.album||'', year: s.year||'', coverSrc: s.coverSrc||''
+    }));
+    renderSelector();
+    if(curTrack === -1) loadTrack(0);
+  }
+};
+// Flush any Firebase data that arrived before applyProfileData was defined
 if(window._fbPending){ window.applyProfileData(window._fbPending); window._fbPending=null; }
+
 async function loadFromStorage(){
-  // Firebase onValue (in the module script above) handles live global data for all visitors.
-  // This function just loads the local fallback so the page isn't blank
-  // while Firebase connects (usually <300ms but avoids flash of empty content).
+  // Local fallback only — Firebase onValue handles live global updates for all visitors
   try {
     const str = await storageLoad('profile_v5_meta');
     if(!str) return;
@@ -1702,6 +1587,7 @@ async function loadFromStorage(){
     if(d) applyProfileData(d);
   } catch(e) {}
 }
+
 function renderBadgesOnCard(){const el=document.getElementById('badges-el');if(!el)return;el.innerHTML='';badgeData.forEach(b=>{const s=document.createElement('span');s.className='badge';s.textContent=b;el.appendChild(s)});const [p1]=pal;document.querySelectorAll('.badge').forEach(b=>{b.style.background=`rgba(${p1[0]},${p1[1]},${p1[2]},0.07)`;b.style.borderColor=`rgba(${p1[0]},${p1[1]},${p1[2]},0.15)`;b.style.color=`rgba(${p1[0]},${p1[1]},${p1[2]},0.68)`})}
 function toast(msg){const ex=document.querySelector('.toast');if(ex)ex.remove();const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2700)}
 document.addEventListener('keydown',e=>{const tag=document.activeElement.tagName;if(tag==='INPUT'||tag==='SELECT')return;if(e.code==='Space'){e.preventDefault();togglePlay()}if(e.code==='ArrowRight')nextTrack();if(e.code==='ArrowLeft')prevTrack();if(e.key==='Escape'){closeSettings();closePw()}});
@@ -1741,21 +1627,12 @@ function connectLanyard(){
 try { applyPalette([[80,180,255],[56,212,255],[144,220,255]]); } catch(e) {}
 try { renderSelector(); } catch(e) {}
 (async()=>{
-  // 1. Load local meta fallback instantly (no network)
-  try { await loadFromStorage(); } catch(e) {}
-  // 2. Load PFP from IDB (too big for Firebase, stored locally)
-  try { await loadPfpFromIDB(); } catch(e) {}
-  // 3. Load songs from IDB
-  try {
-    const saved = await idbGetAll('songs');
-    if(saved && saved.length){
-      songs = saved.map(s=>({url:s.url,b64:s.url,name:s.name||'',artist:s.artist||'',album:s.album||'',year:s.year||'',coverSrc:s.coverSrc||''}));
-      renderSelector();
-      loadTrack(0);
-    }
-  } catch(e) {}
-  // 4. Firebase onValue (in module script) fires and overwrites meta with global settings
+  // Firebase onValue fires within ~300ms and calls applyProfileData with songs+pfp URLs
+  // so visitors on any device/browser get everything from catbox automatically.
+  // We just increment views locally — no IDB song loading needed for visitors.
   try { views++; document.getElementById('view-num').textContent = views.toLocaleString(); } catch(e) {}
+  // Owner only: load their local settings as instant fallback before Firebase responds
+  try { await loadFromStorage(); } catch(e) {}
 })();
 try { fetch(`https://api.lanyard.rest/v1/users/${DISCORD_ID}`).then(r=>r.json()).then(j=>{if(j.success&&j.data)applyPresence(j.data)}).catch(()=>{}); } catch(e) {}
 try { connectLanyard(); } catch(e) {}
@@ -1870,190 +1747,6 @@ document.addEventListener('keydown', ev=>{
     ev.preventDefault(); onEnterClick(null);
   }
 });
-
-  /* ────────────────────────────────────────────────
-   SONG SYNC SYSTEM — DROP‑IN FULL SCRIPT
-   ──────────────────────────────────────────────── */
-
-// Ensure songs array exists
-if (!window.songs) window.songs = [];
-let songs = window.songs;
-
-// ────────────────────────────────────────────────
-// FETCH METADATA FROM CATBOX URL
-// ────────────────────────────────────────────────
-async function fetchSongMeta(url) {
-  return new Promise((resolve) => {
-    if (typeof jsmediatags === 'undefined') {
-      console.warn('jsmediatags missing — using fallback metadata');
-      resolve({
-        url,
-        name: 'Unknown Title',
-        artist: 'Unknown Artist',
-        album: '',
-        year: '',
-        cover: null
-      });
-      return;
-    }
-
-    jsmediatags.read(url, {
-      onSuccess(tag) {
-        const t = tag.tags;
-
-        if (t.picture) {
-          const pic = t.picture;
-          const bytes = new Uint8Array(pic.data);
-          const blob = new Blob([bytes], { type: pic.format || 'image/jpeg' });
-          const reader = new FileReader();
-
-          reader.onload = () => {
-            resolve({
-              url,
-              name: t.title  || 'Unknown Title',
-              artist: t.artist || 'Unknown Artist',
-              album: t.album || '',
-              year: t.year ? String(t.year) : '',
-              cover: reader.result
-            });
-          };
-
-          reader.readAsDataURL(blob);
-        } else {
-          resolve({
-            url,
-            name: t.title  || 'Unknown Title',
-            artist: t.artist || 'Unknown Artist',
-            album: t.album || '',
-            year: t.year ? String(t.year) : '',
-            cover: null
-          });
-        }
-      },
-
-      onError(err) {
-        console.warn('Metadata read failed:', err);
-        resolve({
-          url,
-          name: 'Unknown Title',
-          artist: 'Unknown Artist',
-          album: '',
-          year: '',
-          cover: null
-        });
-      }
-    });
-  });
-}
-
-
-// ────────────────────────────────────────────────
-// INITIAL 13 SONGS — RUN ONCE
-// ────────────────────────────────────────────────
-async function loadInitialSongs() {
-  const urls = [
-    "https://files.catbox.moe/59sone.mp3",
-    "https://files.catbox.moe/8p5iza.mp3",
-    "https://files.catbox.moe/8zsq1i.mp3",
-    "https://files.catbox.moe/qvt1na.mp3",
-    "https://files.catbox.moe/1or0xn.mp3",
-    "https://files.catbox.moe/agdrlx.mp3",
-    "https://files.catbox.moe/f0g18r.mp3",
-    "https://files.catbox.moe/mxbmku.mp3",
-    "https://files.catbox.moe/k5otlc.mp3",
-    "https://files.catbox.moe/ng5fte.mp3",
-    "https://files.catbox.moe/03pgmn.mp3",
-    "https://files.catbox.moe/xt9kvz.mp3",
-    "https://files.catbox.moe/78j063.mp3"
-  ];
-
-  const list = [];
-
-  for (const url of urls) {
-    const meta = await fetchSongMeta(url);
-    list.push(meta);
-  }
-
-  songs = list;
-
-  // Save to Firebase
-  if (window._fbSet) window._fbSet({ songs });
-
-  // Cache locally
-  if (typeof idbPut === 'function') idbPut('songs', songs);
-
-  // Update UI
-  if (typeof renderSongListSP === 'function') renderSongListSP();
-  if (typeof renderSongListMain === 'function') renderSongListMain();
-
-  console.log('Initial songs loaded + synced.');
-}
-
-// To run once: open console and type: loadInitialSongs();
-
-
-// ────────────────────────────────────────────────
-// ADD NEW SONG LATER
-// ────────────────────────────────────────────────
-async function addSong(url) {
-  const meta = await fetchSongMeta(url);
-  songs.push(meta);
-
-  // Save to Firebase
-  if (window._fbSet) window._fbSet({ songs });
-
-  // Cache locally
-  if (typeof idbPut === 'function') idbPut('songs', songs);
-
-  // Update UI
-  if (typeof renderSongListSP === 'function') renderSongListSP();
-  if (typeof renderSongListMain === 'function') renderSongListMain();
-
-  if (typeof toast === 'function') toast('song added & synced');
-}
-
-
-// ────────────────────────────────────────────────
-// APPLY SONGS FROM FIREBASE
-// ────────────────────────────────────────────────
-function applySongs(list) {
-  if (!Array.isArray(list)) return;
-
-  songs = list;
-
-  if (typeof idbPut === 'function') idbPut('songs', songs);
-
-  if (typeof renderSongListSP === 'function') renderSongListSP();
-  if (typeof renderSongListMain === 'function') renderSongListMain();
-
-  if (typeof currentSongIndex !== 'undefined' &&
-      currentSongIndex !== null &&
-      songs[currentSongIndex] &&
-      typeof loadSong === 'function') {
-    loadSong(currentSongIndex);
-  }
-}
-
-
-// ────────────────────────────────────────────────
-// LOAD SONGS FROM INDEXEDDB ON STARTUP
-// ────────────────────────────────────────────────
-async function loadSongsFromIDB() {
-  if (typeof idbGet !== 'function') return;
-
-  const stored = await idbGet('songs');
-  if (stored && Array.isArray(stored) && stored.length) {
-    songs = stored;
-
-    if (typeof renderSongListSP === 'function') renderSongListSP();
-    if (typeof renderSongListMain === 'function') renderSongListMain();
-  }
-}
-
-// Call on page load if you want:
-// loadSongsFromIDB();
-
-
 
 </script>
 </body>
