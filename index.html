@@ -1521,10 +1521,7 @@ function cloudinaryUpload(file, cloudName, preset, onProgress){
       if(xhr.status === 200){
         const res = JSON.parse(xhr.responseText);
         // Add fl_attachment:false to force proper CORS headers on Cloudinary CDN
-        let url = res.secure_url;
-        // Insert /fl_cors/ into the upload path for proper CORS headers
-        url = url.replace('/upload/', '/upload/fl_cors/');
-        resolve(url);
+        resolve(res.secure_url);
       } else {
         reject(new Error('Cloudinary error: ' + xhr.status + ' ' + xhr.responseText));
       }
