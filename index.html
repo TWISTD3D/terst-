@@ -1727,8 +1727,11 @@ window.applyProfileData = function applyProfileData(d){
       album: s.album||'', year: s.year||'', coverSrc: s.coverSrc||''
     }));
     renderSelector();
-    // Set up track 0 in the player so it's ready to play on button press
-    if(!playing){ curTrack=-1; loadTrack(0); }
+    // Just update UI — don't set audio.src yet (mobile blocks it before user gesture)
+    if(!playing && curTrack === -1){
+      updateTrackUI(songs[0]);
+      updateAlbumDisplay(songs[0]);
+    }
   }
 };
 // Flush any Firebase data that arrived before applyProfileData was defined
